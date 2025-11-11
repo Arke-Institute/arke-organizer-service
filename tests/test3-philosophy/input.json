@@ -1,0 +1,70 @@
+{
+  "directory_path": "/philosophy/epistemology-collection",
+  "files": [
+    {
+      "name": "plato-theaetetus.pdf.ref.json",
+      "type": "ref",
+      "content": "THEAETETUS by Plato\n\nSOCRATES: But the most remarkable thing about it is that we know what we know, and that we do not know what we do not know.\n\nTHEAETETUS: True.\n\nSOCRATES: Then what is knowledge? For we seem to be going round in a circle. Knowledge is perception, you say. But perception is knowledge, I say. And so we define knowledge by knowledge.\n\nThe question of the nature of knowledge itself remains. Is knowledge merely true belief? Or is it true belief with an account?",
+      "original_filename": "plato-theaetetus.pdf",
+      "metadata": {
+        "mime_type": "application/pdf",
+        "size": 125600
+      }
+    },
+    {
+      "name": "descartes-meditations.pdf.ref.json",
+      "type": "ref",
+      "content": "MEDITATIONS ON FIRST PHILOSOPHY\nby René Descartes\n\nMeditation I: Concerning Those Things That Can Be Called into Doubt\n\nSeveral years have now passed since I first realized how numerous were the false opinions that in my youth I had taken to be true, and thus how doubtful were all those that I had subsequently built upon them. From the time I became aware of this, I realized that for once I had to raze everything in my life, down to the very bottom, so as to begin again from the first foundations.\n\nBut I have convinced myself that there is nothing in the world—no sky, no earth, no minds, no bodies. Doesn't it follow that I don't exist? No, surely I must exist if it's me who is convinced of something. But there is a deceiver, supremely powerful and cunning whose aim is to see that I am always deceived. But surely I exist, if I am deceived. Let him deceive me all he can, he will never make it the case that I am nothing while I think that I am something. Thus, after everything has been most carefully weighed, it must finally be established that this pronouncement 'I am, I exist' is necessarily true every time I utter it or conceive it in my mind.",
+      "original_filename": "descartes-meditations.pdf",
+      "metadata": {
+        "mime_type": "application/pdf",
+        "size": 187300
+      }
+    },
+    {
+      "name": "hume-enquiry.pdf.ref.json",
+      "type": "ref",
+      "content": "AN ENQUIRY CONCERNING HUMAN UNDERSTANDING\nby David Hume\n\nSection II: Of the Origin of Ideas\n\nEveryone will readily allow that there is a considerable difference between the perceptions of the mind when a man feels the pain of excessive heat or the pleasure of moderate warmth, and when he afterwards recalls to his memory this sensation or anticipates it by his imagination.\n\nAll the materials of thinking are derived either from our outward or inward sentiment: the mixture and composition of these belongs alone to the mind and will. Or, to express myself in philosophical language, all our ideas or more feeble perceptions are copies of our impressions or more lively ones.\n\nCustom, then, is the great guide of human life. It is that principle alone which renders our experience useful to us.",
+      "original_filename": "hume-enquiry.pdf",
+      "metadata": {
+        "mime_type": "application/pdf",
+        "size": 156800
+      }
+    },
+    {
+      "name": "kant-critique.pdf.ref.json",
+      "type": "ref",
+      "content": "CRITIQUE OF PURE REASON\nby Immanuel Kant\n\nPreface to the Second Edition\n\nHitherto it has been assumed that all our knowledge must conform to objects. But all attempts to extend our knowledge of objects by establishing something in regard to them a priori, by means of concepts, have, on this assumption, ended in failure.\n\nWe must therefore make trial whether we may not have more success in the tasks of metaphysics, if we suppose that objects must conform to our knowledge. This would agree better with what is desired, namely, that it should be possible to have knowledge of objects a priori, determining something in regard to them prior to their being given.\n\nThe situation here is the same as that which Copernicus found himself in. When he found that he could make no progress by assuming that all the heavenly bodies revolved around the spectator, he tried to see if he might not have better success if he made the spectator revolve and left the stars at rest.",
+      "original_filename": "kant-critique.pdf",
+      "metadata": {
+        "mime_type": "application/pdf",
+        "size": 198700
+      }
+    },
+    {
+      "name": "locke-essay.pdf.ref.json",
+      "type": "ref",
+      "content": "AN ESSAY CONCERNING HUMAN UNDERSTANDING\nby John Locke\n\nBook II: Of Ideas\nChapter I: Of Ideas in General, and Their Original\n\n1. Idea is the object of thinking. Every man being conscious to himself that he thinks; and that which his mind is applied about whilst thinking being the ideas that are there, it is past doubt that men have in their minds several ideas,—such as are those expressed by the words whiteness, hardness, sweetness, thinking, motion, man, elephant, army, drunkenness, and others.\n\n2. All ideas come from sensation or reflection. Let us then suppose the mind to be, as we say, white paper, void of all characters, without any ideas:—How comes it to be furnished? Whence comes it by that vast store which the busy and boundless fancy of man has painted on it with an almost endless variety? Whence has it all the materials of reason and knowledge? To this I answer, in one word, from EXPERIENCE.",
+      "original_filename": "locke-essay.pdf",
+      "metadata": {
+        "mime_type": "application/pdf",
+        "size": 167400
+      }
+    },
+    {
+      "name": "berkeley-principles.pdf.ref.json",
+      "type": "ref",
+      "content": "A TREATISE CONCERNING THE PRINCIPLES OF HUMAN KNOWLEDGE\nby George Berkeley\n\nPart I\n\n1. It is evident to any one who takes a survey of the objects of human knowledge, that they are either ideas actually imprinted on the senses; or else such as are perceived by attending to the passions and operations of the mind; or lastly, ideas formed by help of memory and imagination.\n\n3. That neither our thoughts, nor passions, nor ideas formed by the imagination, exist without the mind, is what everybody will allow. And to me it is no less evident that the various sensations or ideas imprinted on the sense, however blended or combined together (that is, whatever objects they compose), cannot exist otherwise than in a mind perceiving them.\n\nEsse est percipi - To be is to be perceived.",
+      "original_filename": "berkeley-principles.pdf",
+      "metadata": {
+        "mime_type": "application/pdf",
+        "size": 143200
+      }
+    },
+    {
+      "name": "collection-overview.md",
+      "type": "text",
+      "content": "# Epistemology Collection\n\nThis collection contains foundational texts in epistemology (theory of knowledge) from ancient to modern philosophy.\n\n## Themes\n\n### Nature of Knowledge\n- What is knowledge?\n- How do we acquire knowledge?\n- What can we know with certainty?\n\n### Major Positions\n\n**Rationalism** (Descartes, Plato, Kant)\n- Knowledge comes primarily from reason\n- A priori knowledge is possible\n- Mind plays active role in knowledge\n\n**Empiricism** (Locke, Hume, Berkeley)\n- Knowledge comes from sensory experience\n- Mind as \"blank slate\"\n- Emphasis on observation and experiment\n\n## Historical Progression\n\n1. Ancient: Plato's forms and knowledge as justified true belief\n2. Early Modern: Descartes' rationalist skepticism\n3. Empiricist Response: Locke, Berkeley, Hume challenge rationalism\n4. Critical Synthesis: Kant attempts to reconcile rationalism and empiricism\n\n## Reading Order\n\nSuggested order:\n1. Plato (foundation)\n2. Descartes (modern starting point)\n3. Locke → Berkeley → Hume (empiricist progression)\n4. Kant (synthesis)"
+    }
+  ]
+}

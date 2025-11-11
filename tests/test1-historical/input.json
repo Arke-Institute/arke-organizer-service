@@ -1,0 +1,80 @@
+{
+  "directory_path": "/archives/civil-war-collection",
+  "files": [
+    {
+      "name": "letter-001.pdf.ref.json",
+      "type": "ref",
+      "content": "Camp near Richmond, Virginia\nApril 12, 1863\n\nMy Dearest Sarah,\n\nThe spring rains have turned our encampment into a sea of mud. The men's spirits remain high despite the difficult conditions. We received news yesterday that General Lee is planning a major offensive northward. I pray this conflict will soon come to an end.\n\nSupplies are running low. We are down to hardtack and salt pork. The quartermaster promises new provisions by week's end.\n\nI think of you and the children constantly. Please give them my love.\n\nYour devoted husband,\nJames",
+      "original_filename": "letter-001.pdf",
+      "metadata": {
+        "mime_type": "application/pdf",
+        "size": 45120
+      }
+    },
+    {
+      "name": "letter-002.pdf.ref.json",
+      "type": "ref",
+      "content": "Richmond, Virginia\nJuly 8, 1863\n\nDearest James,\n\nYour letter of June 15th arrived yesterday. We were overjoyed to hear from you. The news from Gettysburg has reached us here - we pray for your safe return.\n\nThe children are well. Little Thomas asks about you daily. Elizabeth has begun helping me with the garden, which provides much of our food now.\n\nThe city is transformed. Nearly every building serves as a hospital. I volunteer three days a week rolling bandages and tending to the wounded.\n\nCome home safely to us.\n\nAll my love,\nSarah",
+      "original_filename": "letter-002.pdf",
+      "metadata": {
+        "mime_type": "application/pdf",
+        "size": 42890
+      }
+    },
+    {
+      "name": "roster-1863.pdf.ref.json",
+      "type": "ref",
+      "content": "COMPANY ROSTER\n12th Virginia Infantry Regiment\nAs of April 1, 1863\n\nCompany A:\nCaptain: James R. Patterson\nLieutenant: William H. Morrison\nSergeant: Robert E. Lee Jr.\n\nEnlisted Men:\n1. Private John Smith - Richmond\n2. Private Thomas Brown - Petersburg\n3. Private William Davis - Norfolk\n[... 47 more names ...]\n\nTotal Strength: 52 men\nPresent for Duty: 48 men\nSick: 3 men\nDeserted: 1 man",
+      "original_filename": "roster-1863.pdf",
+      "metadata": {
+        "mime_type": "application/pdf",
+        "size": 128450
+      }
+    },
+    {
+      "name": "battle-report-1863-06.pdf.ref.json",
+      "type": "ref",
+      "content": "AFTER ACTION REPORT\n12th Virginia Infantry\nBattle of Brandy Station\nJune 9, 1863\n\nAt 0430 hours, Union cavalry under General Pleasonton crossed the Rappahannock River. Our regiment was positioned on the right flank near Fleetwood Hill.\n\nCasualties:\nKilled: 7\nWounded: 23\nMissing: 2\n\nThe engagement lasted approximately 6 hours. Enemy was repulsed but at significant cost. Ammunition expenditure was heavy - approximately 40 rounds per man.\n\nRecommend: Immediate resupply and 48 hours rest for the men.\n\nSubmitted by:\nCaptain James R. Patterson\nCompany A, 12th Virginia Infantry",
+      "original_filename": "battle-report-1863-06.pdf",
+      "metadata": {
+        "mime_type": "application/pdf",
+        "size": 67200
+      }
+    },
+    {
+      "name": "quartermaster-log.pdf.ref.json",
+      "type": "ref",
+      "content": "QUARTERMASTER RECORDS\nApril-June 1863\n\nSupplies Received:\nApril 15: 200 lbs hardtack, 100 lbs salt pork, 50 lbs coffee\nMay 3: 150 lbs flour, 75 lbs bacon\nMay 20: 300 rounds ammunition per man\nJune 1: 100 pairs shoes, 75 blankets\n\nSupplies Issued:\nDaily rations to 52 men\nExtra clothing to replace winter damage\nAmmunition for training and combat operations\n\nCurrent Stock:\nHardtack: 45 lbs\nSalt pork: 12 lbs\nAmmunition: Critically low\nClothing: Adequate",
+      "original_filename": "quartermaster-log.pdf",
+      "metadata": {
+        "mime_type": "application/pdf",
+        "size": 89300
+      }
+    },
+    {
+      "name": "photograph-001.jpg.ref.json",
+      "type": "ref",
+      "content": "",
+      "original_filename": "photograph-001.jpg",
+      "metadata": {
+        "mime_type": "image/jpeg",
+        "size": 2345678
+      }
+    },
+    {
+      "name": "photograph-002.jpg.ref.json",
+      "type": "ref",
+      "content": "",
+      "original_filename": "photograph-002.jpg",
+      "metadata": {
+        "mime_type": "image/jpeg",
+        "size": 1987654
+      }
+    },
+    {
+      "name": "index.md",
+      "type": "text",
+      "content": "# Civil War Collection - 12th Virginia Infantry\n\nThis collection contains correspondence, military records, and photographs from the 12th Virginia Infantry Regiment during the American Civil War (1861-1865).\n\n## Contents\n\n- Personal letters between Captain James R. Patterson and his wife Sarah\n- Military rosters and reports\n- Quartermaster supply records\n- Period photographs\n\n## Historical Context\n\nThe 12th Virginia Infantry was part of the Army of Northern Virginia and participated in several major engagements including Brandy Station and Gettysburg.\n\n## Provenance\n\nDonated by the Patterson family in 1952."
+    }
+  ]
+}

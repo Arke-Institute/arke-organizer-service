@@ -1,0 +1,28 @@
+{
+  "name": "organizer-service",
+  "version": "1.0.0",
+  "description": "LLM-powered file organization service that analyzes directory contents and groups files into logical collections",
+  "main": "src/index.ts",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "build": "tsc",
+    "test": "vitest"
+  },
+  "keywords": [
+    "cloudflare",
+    "worker",
+    "llm",
+    "deepinfra"
+  ],
+  "author": "Arke Institute",
+  "license": "MIT",
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20241127.0",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8",
+    "wrangler": "^4.45.3"
+  },
+  "dependencies": {
+  }
+}

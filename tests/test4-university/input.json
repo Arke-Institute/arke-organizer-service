@@ -1,0 +1,110 @@
+{
+  "directory_path": "/university-archives/1975-collection",
+  "files": [
+    {
+      "name": "president-letter-1975-03.pdf.ref.json",
+      "type": "ref",
+      "content": "Office of the President\nMarch 15, 1975\n\nTo the University Community,\n\nI write to inform you of several important developments affecting our institution.\n\nFirst, the Board of Trustees has approved a comprehensive renovation of the Science Building, funded through a generous donation from the Alumni Association. Construction will begin this summer.\n\nSecond, I am pleased to announce that enrollment for Fall 1975 has reached a record 4,500 students, representing a 15% increase over last year.\n\nFinally, we welcome three new faculty members to the Department of Computer Science, reflecting our commitment to emerging technologies.\n\nSincerely,\nDr. Robert Henderson\nPresident",
+      "original_filename": "president-letter-1975-03.pdf",
+      "metadata": {
+        "mime_type": "application/pdf",
+        "size": 67800
+      }
+    },
+    {
+      "name": "graduation-program.pdf.ref.json",
+      "type": "ref",
+      "content": "COMMENCEMENT EXERCISES\nMay 25, 1975\n\nORDER OF EVENTS\n\n10:00 AM - Processional\n10:15 AM - Welcome by President Henderson\n10:30 AM - Commencement Address\n           \"Technology and the Human Spirit\"\n           by Dr. Margaret Chen, IBM Research\n11:15 AM - Conferring of Degrees\n           Bachelor of Arts: 342 graduates\n           Bachelor of Science: 298 graduates\n           Master's Degrees: 87 graduates\n           Doctoral Degrees: 12 graduates\n12:30 PM - Recessional\n\nTotal Graduates: 739",
+      "original_filename": "graduation-program.pdf",
+      "metadata": {
+        "mime_type": "application/pdf",
+        "size": 54300
+      }
+    },
+    {
+      "name": "campus-photo-spring.jpg.ref.json",
+      "type": "ref",
+      "content": "",
+      "original_filename": "campus-photo-spring.jpg",
+      "metadata": {
+        "mime_type": "image/jpeg",
+        "size": 3456789
+      }
+    },
+    {
+      "name": "campus-photo-construction.jpg.ref.json",
+      "type": "ref",
+      "content": "",
+      "original_filename": "campus-photo-construction.jpg",
+      "metadata": {
+        "mime_type": "image/jpeg",
+        "size": 2987654
+      }
+    },
+    {
+      "name": "financial-report-1975.pdf.ref.json",
+      "type": "ref",
+      "content": "ANNUAL FINANCIAL REPORT\nFiscal Year 1974-1975\n\nREVENUE\nTuition and Fees: $8,450,000\nState Appropriations: $12,300,000\nEndowment Income: $2,100,000\nGrants and Contracts: $3,800,000\nAuxiliary Services: $1,900,000\nTotal Revenue: $28,550,000\n\nEXPENDITURES\nInstruction: $14,200,000\nResearch: $4,600,000\nAcademic Support: $2,800,000\nStudent Services: $1,900,000\nPhysical Plant: $3,400,000\nAdministration: $1,650,000\nTotal Expenditures: $28,550,000\n\nNet Change: $0\n\nENDOWMENT\nBeginning Balance: $42,000,000\nContributions: $3,200,000\nInvestment Income: $4,100,000\nEnding Balance: $49,300,000",
+      "original_filename": "financial-report-1975.pdf",
+      "metadata": {
+        "mime_type": "application/pdf",
+        "size": 145600
+      }
+    },
+    {
+      "name": "faculty-senate-minutes-1975-04.pdf.ref.json",
+      "type": "ref",
+      "content": "FACULTY SENATE MEETING MINUTES\nApril 18, 1975\n\nPresent: 45 voting members\n\nOLD BUSINESS\n1. Curriculum Review Committee presented proposed changes to general education requirements. Motion to approve passed 32-8.\n\n2. Parking Committee reported ongoing challenges with limited spaces. Proposal to build new parking structure tabled pending cost analysis.\n\nNEW BUSINESS\n1. Proposal for new Computer Science major approved unanimously.\n\n2. Discussion of tenure procedures. Committee formed to review current policies.\n\n3. Budget concerns raised regarding library acquisitions. President Henderson committed to addressing in next fiscal year.\n\nMeeting adjourned 4:30 PM.\n\nNext meeting: May 16, 1975",
+      "original_filename": "faculty-senate-minutes-1975-04.pdf",
+      "metadata": {
+        "mime_type": "application/pdf",
+        "size": 78900
+      }
+    },
+    {
+      "name": "research-grant-announcement.pdf.ref.json",
+      "type": "ref",
+      "content": "RESEARCH GRANT AWARD\n\nThe National Science Foundation has awarded $450,000 to Dr. Sarah Williams, Department of Biology, for her research project \"Microbial Ecology in Freshwater Systems.\"\n\nThis three-year grant will support:\n- Two graduate research assistants\n- Laboratory equipment\n- Field research in local lake systems\n- Conference travel and publication costs\n\nThis is the largest single research grant in the university's history.\n\nDr. Williams' research examines the role of microorganisms in maintaining water quality and has significant implications for environmental management.\n\nThe grant period runs from September 1975 through August 1978.",
+      "original_filename": "research-grant-announcement.pdf",
+      "metadata": {
+        "mime_type": "application/pdf",
+        "size": 56700
+      }
+    },
+    {
+      "name": "student-newspaper-1975-05.pdf.ref.json",
+      "type": "ref",
+      "content": "THE CAMPUS HERALD\nMay 1, 1975\n\nHEADLINES\n\n\"Record Enrollment Expected for Fall\"\nAdmissions office reports 15% increase in applications.\n\n\"Computer Lab Opens in Science Building\"\nStudents gain access to PDP-11 minicomputer.\n\n\"Women's Basketball Team Wins Conference Championship\"\nFirst conference title in school history.\n\n\"Library Hours Extended During Finals Week\"\n24-hour access May 15-22.\n\nEDITORIAL\n\"On the Need for Better Campus Lighting\"\nSafety concerns raised about poorly lit pathways.\n\nOPINION\n\"Is Technology Making Us Less Human?\"\nStudent reflects on increasing computerization.",
+      "original_filename": "student-newspaper-1975-05.pdf",
+      "metadata": {
+        "mime_type": "application/pdf",
+        "size": 89400
+      }
+    },
+    {
+      "name": "athletics-report.pdf.ref.json",
+      "type": "ref",
+      "content": "DEPARTMENT OF ATHLETICS\nAnnual Report 1974-1975\n\nTEAM RECORDS\nFootball: 6-5 (conference: 4-3)\nBasketball (Men): 18-9 (conference: 9-5)\nBasketball (Women): 22-3 (conference: 12-0) - CHAMPIONS\nBaseball: 28-15 (conference: 14-4)\nTrack & Field: 3rd place conference\n\nPARTICIPATION\nVarsity Athletes: 285\nIntramural Participants: 1,240\n\nFACILITIES\nStadium Capacity: 8,500\nGymnasium Capacity: 2,200\nTraining Facilities: Recently upgraded\n\nNOTABLE ACHIEVEMENTS\n- Women's Basketball Conference Championship\n- 3 All-Conference selections\n- 1 Academic All-American",
+      "original_filename": "athletics-report.pdf",
+      "metadata": {
+        "mime_type": "application/pdf",
+        "size": 72300
+      }
+    },
+    {
+      "name": "architecture-plans.pdf.ref.json",
+      "type": "ref",
+      "content": "",
+      "original_filename": "architecture-plans.pdf",
+      "metadata": {
+        "mime_type": "application/pdf",
+        "size": 8934567
+      }
+    },
+    {
+      "name": "collection-notes.md",
+      "type": "text",
+      "content": "# 1975 University Archives Collection\n\nThis collection documents a significant year in the university's history, marked by growth, achievement, and modernization.\n\n## Key Events\n\n- Record enrollment (4,500 students)\n- Major research grant award ($450,000 NSF grant)\n- Science Building renovation announced\n- Women's Basketball conference championship\n- Introduction of Computer Science major\n- Commencement: 739 graduates\n\n## Document Types\n\n- Administrative correspondence\n- Financial reports\n- Faculty governance minutes\n- Student publications\n- Athletic records\n- Photographs\n- Architectural plans\n\n## Historical Context\n\nMid-1970s marked transition period:\n- Increasing enrollment following post-Vietnam era\n- Growing emphasis on technology and computer science\n- Expansion of women's athletics\n- Financial stability through diversified revenue sources\n\n## Themes\n\n- Institutional growth and development\n- Academic innovation (Computer Science)\n- Athletics achievement\n- Financial management\n- Campus development"
+    }
+  ]
+}
