@@ -47,6 +47,7 @@ INSTRUCTIONS:
 4. If a file contains content that genuinely belongs to multiple groups (e.g., a page with content from two different meetings), include it in both groups
 5. For files without content (binary/ref files with no OCR), use the filename and metadata to infer which group it belongs to
 6. Prefer clear, distinct groups over meta-categories
+7. **EVERY file listed above MUST be accounted for** - either placed in a group or listed in ungrouped_files. If content is truncated or unclear, use the filename to infer the category.
 
 IMPORTANT CONSTRAINTS:
 - Avoid creating meta-groups that duplicate files unnecessarily (e.g., "all images" when images already belong to thematic groups)
@@ -63,6 +64,7 @@ Provide your response as:
 - "reorganization_description": Overall description of the organizational strategy you chose
 
 The response will be automatically formatted as structured JSON.`;
+
 }
 
 /**
@@ -84,6 +86,7 @@ INSTRUCTIONS:
 4. If a file contains content that genuinely belongs to multiple groups (e.g., a page with content from two different meetings), include it in both groups
 5. For files without content (binary/ref files with no OCR), use the filename and metadata to infer which group it belongs to
 6. Prefer clear, distinct groups over meta-categories
+7. **EVERY file listed above MUST be accounted for** - either placed in a group or listed in ungrouped_files. If content is truncated or unclear, use the filename to infer the category.
 
 IMPORTANT CONSTRAINTS:
 - Avoid creating meta-groups that duplicate files unnecessarily (e.g., "all images" when images already belong to thematic groups)

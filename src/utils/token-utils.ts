@@ -12,7 +12,7 @@
  * @returns Estimated number of tokens
  */
 export function estimateTokens(text: string): number {
-  return Math.ceil(text.length / 4);
+  return Math.ceil(text.length / 3);
 }
 
 /**
