@@ -40,4 +40,4 @@ yarn-error.log*
 .env.*.local
 
 # Test outputs
-tests/test*/output.json
+tests/test*/*.json
