@@ -5,7 +5,7 @@
 
 import type { Env, OrganizeRequest, OrganizeResponse, OrganizeStructuredOutput, JsonSchema } from './types';
 import { callLLM } from './llm';
-import { generateSystemPrompt, generateUserPrompt } from './prompts';
+import { generateSystemPrompt, generateUserPrompt, getLastTruncationStats } from './prompts';
 import { validateRequest, validateResponse } from './validation';
 
 /**
@@ -78,7 +78,7 @@ export async function processOrganizeRequest(
 
   // 2. Generate prompts
   const systemPrompt = generateSystemPrompt();
-  const userPrompt = generateUserPrompt(request);
+  const userPrompt = generateUserPrompt(request, env);
 
   // 3. Call LLM with structured output schema
   const llmResponse = await callLLM(systemPrompt, userPrompt, env, ORGANIZE_SCHEMA);
@@ -95,7 +95,10 @@ export async function processOrganizeRequest(
   const requestFileNames = request.files.map(f => f.name);
   validateResponse(parsedResponse, requestFileNames);
 
-  // 6. Return formatted result
+  // 6. Get truncation stats
+  const truncationStats = getLastTruncationStats();
+
+  // 7. Return formatted result
   return {
     groups: parsedResponse.groups,
     ungrouped_files: parsedResponse.ungrouped_files,
@@ -106,6 +109,7 @@ export async function processOrganizeRequest(
       completion: llmResponse.completion_tokens,
       total: llmResponse.tokens
     },
-    cost_usd: llmResponse.cost_usd
+    cost_usd: llmResponse.cost_usd,
+    truncation: truncationStats
   };
 }

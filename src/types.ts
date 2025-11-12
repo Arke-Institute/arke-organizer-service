@@ -8,6 +8,7 @@ export interface Env {
   DEEPINFRA_BASE_URL: string;
   MODEL_NAME: string;
   MAX_TOKENS?: number;
+  TOKEN_BUDGET_PERCENTAGE?: number;
 }
 
 // Request types (from API spec)
@@ -39,6 +40,18 @@ export interface OrganizeResponse {
     total: number;
   };
   cost_usd?: number;
+  truncation?: TruncationMetadata;
+}
+
+// Truncation metadata for observability
+export interface TruncationMetadata {
+  applied: boolean;
+  total_original_tokens: number;
+  target_tokens: number;
+  deficit: number;
+  protection_mode_used: boolean;
+  protected_files: number;
+  truncated_files: number;
 }
 
 export interface OrganizeGroup {

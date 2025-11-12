@@ -7,7 +7,8 @@
   "vars": {
     "DEEPINFRA_BASE_URL": "https://api.deepinfra.com/v1/openai",
     "MODEL_NAME": "deepseek-ai/DeepSeek-V3",
-    "MAX_TOKENS": 8192
+    "MAX_TOKENS": 128000,
+    "TOKEN_BUDGET_PERCENTAGE": 0.7
   },
 
   // Note: Set DEEPINFRA_API_KEY as a secret using:
