@@ -48,6 +48,7 @@ INSTRUCTIONS:
 5. For files without content (binary/ref files with no OCR), use the filename and metadata to infer which group it belongs to
 6. Prefer clear, distinct groups over meta-categories
 7. **EVERY file listed above MUST be accounted for** - either placed in a group or listed in ungrouped_files. If content is truncated or unclear, use the filename to infer the category.
+8. **CRITICAL: Only return EXACT filenames from the list above. NEVER return directory paths (e.g., "posts/", "images/") - only return individual file names.**
 
 IMPORTANT CONSTRAINTS:
 - Avoid creating meta-groups that duplicate files unnecessarily (e.g., "all images" when images already belong to thematic groups)
@@ -87,6 +88,7 @@ INSTRUCTIONS:
 5. For files without content (binary/ref files with no OCR), use the filename and metadata to infer which group it belongs to
 6. Prefer clear, distinct groups over meta-categories
 7. **EVERY file listed above MUST be accounted for** - either placed in a group or listed in ungrouped_files. If content is truncated or unclear, use the filename to infer the category.
+8. **CRITICAL: Only return EXACT filenames from the list above. NEVER return directory paths (e.g., "posts/", "images/") - only return individual file names.**
 
 IMPORTANT CONSTRAINTS:
 - Avoid creating meta-groups that duplicate files unnecessarily (e.g., "all images" when images already belong to thematic groups)

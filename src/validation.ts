@@ -48,13 +48,23 @@ export function validateRequest(request: OrganizeRequest): void {
 }
 
 /**
+ * Validation result containing warnings instead of throwing errors for recoverable issues
+ */
+export interface ValidationResult {
+  warnings: string[];
+  sanitizedResponse: OrganizeStructuredOutput;
+}
+
+/**
  * Validate the LLM response
  * Ensures all files are accounted for and group names are valid
+ * Returns warnings for recoverable issues instead of throwing errors
  */
 export function validateResponse(
   response: OrganizeStructuredOutput,
   requestFiles: string[]
-): void {
+): ValidationResult {
+  const warnings: string[] = [];
   // Check required fields
   if (!response.groups || !Array.isArray(response.groups)) {
     throw new Error('Response must contain groups array');
@@ -73,16 +83,49 @@ export function validateResponse(
     validateGroup(group, index);
   });
 
-  // Check that all files are accounted for
+  // Check that all files are accounted for and sanitize directory paths
   const allFilesInResponse = new Set<string>();
+  const sanitizedGroups: OrganizeGroup[] = [];
 
-  // Add files from groups
+  // Helper to detect directory paths (ends with /)
+  const isDirectoryPath = (filename: string): boolean => {
+    return filename.endsWith('/');
+  };
+
+  // Process groups and filter out directory paths
   response.groups.forEach(group => {
-    group.files.forEach(file => allFilesInResponse.add(file));
+    const sanitizedFiles: string[] = [];
+
+    group.files.forEach(file => {
+      if (isDirectoryPath(file)) {
+        warnings.push(`Directory path "${file}" found in group "${group.group_name}" - directories are not valid file entries and have been removed`);
+      } else {
+        sanitizedFiles.push(file);
+        allFilesInResponse.add(file);
+      }
+    });
+
+    // Only include group if it has files after sanitization
+    if (sanitizedFiles.length > 0) {
+      sanitizedGroups.push({
+        ...group,
+        files: sanitizedFiles
+      });
+    } else {
+      warnings.push(`Group "${group.group_name}" was empty after removing directory paths and has been excluded`);
+    }
   });
 
-  // Add ungrouped files
-  response.ungrouped_files.forEach(file => allFilesInResponse.add(file));
+  // Process ungrouped files and filter out directory paths
+  const sanitizedUngrouped: string[] = [];
+  response.ungrouped_files.forEach(file => {
+    if (isDirectoryPath(file)) {
+      warnings.push(`Directory path "${file}" found in ungrouped_files - directories are not valid file entries and have been removed`);
+    } else {
+      sanitizedUngrouped.push(file);
+      allFilesInResponse.add(file);
+    }
+  });
 
   // Check that all request files are present
   const missingFiles = requestFiles.filter(file => !allFilesInResponse.has(file));
@@ -90,11 +133,34 @@ export function validateResponse(
     throw new Error('Files not accounted for in response: ' + missingFiles.join(', '));
   }
 
-  // Check that no extra files were added
+  // Check for extra files (that aren't directory paths - those are already handled)
   const extraFiles = Array.from(allFilesInResponse).filter(file => !requestFiles.includes(file));
   if (extraFiles.length > 0) {
-    throw new Error('Response contains files not in request: ' + extraFiles.join(', '));
+    warnings.push(`Response contains files not in request: ${extraFiles.join(', ')} - these have been removed`);
+    // Filter out extra files from sanitized response
+    sanitizedGroups.forEach(group => {
+      group.files = group.files.filter(file => requestFiles.includes(file));
+    });
+    const finalUngrouped = sanitizedUngrouped.filter(file => requestFiles.includes(file));
+
+    return {
+      warnings,
+      sanitizedResponse: {
+        groups: sanitizedGroups,
+        ungrouped_files: finalUngrouped,
+        reorganization_description: response.reorganization_description
+      }
+    };
   }
+
+  return {
+    warnings,
+    sanitizedResponse: {
+      groups: sanitizedGroups,
+      ungrouped_files: sanitizedUngrouped,
+      reorganization_description: response.reorganization_description
+    }
+  };
 }
 
 /**

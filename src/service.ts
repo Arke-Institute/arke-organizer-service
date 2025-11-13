@@ -93,16 +93,21 @@ export async function processOrganizeRequest(
 
   // 5. Validate the parsed response
   const requestFileNames = request.files.map(f => f.name);
-  validateResponse(parsedResponse, requestFileNames);
+  const validationResult = validateResponse(parsedResponse, requestFileNames);
 
   // 6. Get truncation stats
   const truncationStats = getLastTruncationStats();
 
-  // 7. Return formatted result
-  return {
-    groups: parsedResponse.groups,
-    ungrouped_files: parsedResponse.ungrouped_files,
-    reorganization_description: parsedResponse.reorganization_description,
+  // 7. Log validation warnings if any
+  if (validationResult.warnings.length > 0) {
+    console.warn('[Validation Warnings]', validationResult.warnings);
+  }
+
+  // 8. Return formatted result with sanitized response
+  const response: OrganizeResponse = {
+    groups: validationResult.sanitizedResponse.groups,
+    ungrouped_files: validationResult.sanitizedResponse.ungrouped_files,
+    reorganization_description: validationResult.sanitizedResponse.reorganization_description,
     model: llmResponse.model,
     tokens: {
       prompt: llmResponse.prompt_tokens,
@@ -112,4 +117,11 @@ export async function processOrganizeRequest(
     cost_usd: llmResponse.cost_usd,
     truncation: truncationStats
   };
+
+  // Add validation warnings if present
+  if (validationResult.warnings.length > 0) {
+    response.validation_warnings = validationResult.warnings;
+  }
+
+  return response;
 }

@@ -72,9 +72,25 @@ Content-Type: application/json
     "completion": 850,
     "total": 6050
   },
-  "cost_usd": 0.0027
+  "cost_usd": 0.0027,
+  "validation_warnings": [
+    "Directory path \"posts/\" found in group \"Posts\" - directories are not valid file entries and have been removed"
+  ]
 }
 ```
+
+**Response Fields:**
+- `groups`: Array of file groups created by the AI
+- `ungrouped_files`: Files that didn't fit into any logical group
+- `reorganization_description`: Overall explanation of the organizational strategy
+- `model`: The AI model used (e.g., "deepseek-ai/DeepSeek-V3")
+- `tokens`: Token usage breakdown (prompt, completion, total)
+- `cost_usd`: Cost in USD for this request
+- `truncation`: (Optional) Metadata about content truncation if applied
+- `validation_warnings`: (Optional) Array of warnings about issues that were automatically corrected:
+  - Directory paths found and removed
+  - Extra files not in request that were filtered out
+  - Empty groups that were excluded after sanitization
 
 ## Configuration
 
@@ -143,12 +159,20 @@ curl -X POST http://localhost:8787/organize \
 
 ## Validation Rules
 
-The service validates:
+The service validates and automatically corrects AI responses:
+
+### Hard Errors (Request Rejected)
 1. **All files accounted for**: Every file in request must appear in groups OR ungrouped_files
-2. **Valid filenames**: All filenames in response must match request
-3. **Filesystem-safe names**: No `/`, `\`, `:`, `*`, `?`, `"`, `<`, `>`, `|` in group names
-4. **Non-empty groups**: Each group must contain at least 1 file
-5. **Overlap allowed**: Files CAN appear in multiple groups
+2. **Filesystem-safe group names**: No `/`, `\`, `:`, `*`, `?`, `"`, `<`, `>`, `|` in group names
+3. **Non-empty groups**: Each group must contain at least 1 file after sanitization
+
+### Automatic Corrections (Warnings in Response)
+4. **Directory paths**: Files ending with `/` are automatically removed with warning
+5. **Extra files**: Files not in the original request are automatically filtered with warning
+6. **Empty groups**: Groups that become empty after sanitization are excluded with warning
+
+### Allowed Behavior
+7. **Overlap allowed**: Files CAN appear in multiple groups (by design for multi-dimensional organization)
 
 ## Error Responses
 

@@ -41,6 +41,7 @@ export interface OrganizeResponse {
   };
   cost_usd?: number;
   truncation?: TruncationMetadata;
+  validation_warnings?: string[];
 }
 
 // Truncation metadata for observability
