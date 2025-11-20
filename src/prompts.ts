@@ -22,8 +22,14 @@ export function getLastTruncationStats(): TruncationMetadata | undefined {
  * Generate the system prompt
  * Sets the role and behavior of the LLM for file organization
  */
-export function generateSystemPrompt(): string {
-  return `You are an expert at organizing and categorizing documents. You think carefully about organizational strategies and can identify patterns across multiple files.`;
+export function generateSystemPrompt(customPrompt?: string): string {
+  let prompt = `You are an expert at organizing and categorizing documents. You think carefully about organizational strategies and can identify patterns across multiple files.`;
+
+  if (customPrompt) {
+    prompt += `\n\nADDITIONAL INSTRUCTIONS:\n${customPrompt}`;
+  }
+
+  return prompt;
 }
 
 /**
@@ -32,7 +38,7 @@ export function generateSystemPrompt(): string {
  * Applies progressive tax truncation to fit within token budget
  */
 export function generateUserPrompt(request: OrganizeRequest, env: Env): string {
-  const filesList = formatFilesList(request.files, env);
+  const filesList = formatFilesList(request.files, env, request.custom_prompt);
 
   return `You are organizing a directory of files into logical groups. The directory "${request.directory_path}" contains the following files:
 
@@ -73,9 +79,9 @@ The response will be automatically formatted as structured JSON.`;
  * Handles both text and ref file types with their metadata
  * Applies progressive tax truncation to fit within token budget
  */
-function formatFilesList(files: OrganizeFileInput[], env: Env): string {
+function formatFilesList(files: OrganizeFileInput[], env: Env, customPrompt?: string): string {
   // Calculate static prompt overhead
-  const systemPrompt = generateSystemPrompt();
+  const systemPrompt = generateSystemPrompt(customPrompt);
   const staticInstructions = `You are organizing a directory of files into logical groups. The directory "" contains the following files:
 
 Your task is to create meaningful organizational groups that best represent the content.

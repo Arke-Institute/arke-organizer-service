@@ -77,7 +77,7 @@ export async function processOrganizeRequest(
   validateRequest(request);
 
   // 2. Generate prompts
-  const systemPrompt = generateSystemPrompt();
+  const systemPrompt = generateSystemPrompt(request.custom_prompt);
   const userPrompt = generateUserPrompt(request, env);
 
   // 3. Call LLM with structured output schema

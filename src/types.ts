@@ -15,6 +15,7 @@ export interface Env {
 export interface OrganizeRequest {
   directory_path: string;
   files: OrganizeFileInput[];
+  custom_prompt?: string;      // Optional custom instructions for this specific request
 }
 
 export interface OrganizeFileInput {
