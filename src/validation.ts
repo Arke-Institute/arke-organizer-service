@@ -3,7 +3,7 @@
  * Validates requests and responses according to API specification
  */
 
-import type { OrganizeRequest, OrganizeStructuredOutput, OrganizeGroup } from './types';
+import type { OrganizeRequest, OrganizeStructuredOutput, OrganizeGroup, StrategizeRequest } from './types';
 
 /**
  * Validate the incoming request
@@ -216,4 +216,54 @@ function formatBytes(bytes: number): string {
   if (bytes < 1024) return bytes + ' bytes';
   if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
   return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+}
+
+/**
+ * Validate the strategize request
+ * Throws an error if validation fails
+ */
+export function validateStrategizeRequest(request: StrategizeRequest): void {
+  // Check required fields
+  if (!request.directory_path) {
+    throw new Error('directory_path is required');
+  }
+
+  if (!request.files || !Array.isArray(request.files)) {
+    throw new Error('files must be an array');
+  }
+
+  if (request.files.length === 0) {
+    throw new Error('files array cannot be empty');
+  }
+
+  if (typeof request.total_file_count !== 'number' || request.total_file_count < 1) {
+    throw new Error('total_file_count must be a positive number');
+  }
+
+  if (typeof request.chunk_count !== 'number' || request.chunk_count < 1) {
+    throw new Error('chunk_count must be a positive number');
+  }
+
+  // Validate each file
+  request.files.forEach((file, index) => {
+    if (!file.name) {
+      throw new Error('File at index ' + index + ': name is required');
+    }
+
+    if (!file.type || (file.type !== 'text' && file.type !== 'ref')) {
+      throw new Error('File at index ' + index + ': type must be "text" or "ref"');
+    }
+
+    if (file.content === undefined || file.content === null) {
+      throw new Error('File at index ' + index + ': content is required (use empty string if no content)');
+    }
+  });
+
+  // Check size constraints (per spec: max 10MB total)
+  const requestSize = JSON.stringify(request).length;
+  const MAX_REQUEST_SIZE = 10 * 1024 * 1024; // 10MB
+
+  if (requestSize > MAX_REQUEST_SIZE) {
+    throw new Error('Request size (' + formatBytes(requestSize) + ') exceeds 10MB limit');
+  }
 }

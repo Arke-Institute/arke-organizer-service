@@ -16,6 +16,7 @@ export interface OrganizeRequest {
   directory_path: string;
   files: OrganizeFileInput[];
   custom_prompt?: string;      // Optional custom instructions for this specific request
+  strategy_guidance?: string;  // Optional guidance from strategize phase for consistency across chunks
 }
 
 export interface OrganizeFileInput {
@@ -126,4 +127,37 @@ export interface OrganizeStructuredOutput {
   groups: OrganizeGroup[];
   ungrouped_files: string[];
   reorganization_description: string;
+}
+
+// === STRATEGIZE TYPES ===
+
+// Request for strategy analysis
+export interface StrategizeRequest {
+  directory_path: string;
+  files: OrganizeFileInput[];    // Sample files (service handles truncation)
+  total_file_count: number;      // Total files in directory
+  chunk_count: number;           // How many chunks will be created
+  custom_prompt?: string;
+}
+
+// Response with strategy guidance
+export interface StrategizeResponse {
+  should_coordinate: boolean;    // false = let chunks decide independently
+  guidance: string;              // Free-form organizational instructions
+  reasoning: string;             // Why this approach was chosen
+  model: string;
+  tokens?: {
+    prompt: number;
+    completion: number;
+    total: number;
+  };
+  cost_usd?: number;
+  truncation?: TruncationMetadata;
+}
+
+// Internal structured output schema for strategize LLM
+export interface StrategizeStructuredOutput {
+  should_coordinate: boolean;
+  guidance: string;
+  reasoning: string;
 }

@@ -6,8 +6,8 @@
   // Environment variables
   "vars": {
     "DEEPINFRA_BASE_URL": "https://api.deepinfra.com/v1/openai",
-    "MODEL_NAME": "deepseek-ai/DeepSeek-V3",
-    "MAX_TOKENS": 128000,
+    "MODEL_NAME": "deepseek-ai/DeepSeek-V3-0324",
+    "MAX_TOKENS": 163839,  // V3-0324 actual limit (V3 only has 32K)
     "TOKEN_BUDGET_PERCENTAGE": 0.3 // set to this to avoid overwhelming the LLM, and force it to use every file. using a lower percentage just means more breadth.  
   },
 

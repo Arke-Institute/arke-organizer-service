@@ -40,15 +40,28 @@ export function generateSystemPrompt(customPrompt?: string): string {
 export function generateUserPrompt(request: OrganizeRequest, env: Env): string {
   const filesList = formatFilesList(request.files, env, request.custom_prompt);
 
+  // Build strategy guidance section if provided
+  const guidanceSection = request.strategy_guidance
+    ? `
+ORGANIZATION GUIDANCE (follow this approach for consistency):
+${request.strategy_guidance}
+
+`
+    : '';
+
+  // Adjust instruction based on whether guidance is provided
+  const strategyInstruction = request.strategy_guidance
+    ? 'Follow the organization guidance above for consistency with other chunks'
+    : 'Determine the organizational strategy that creates logical, coherent groups';
+
   return `You are organizing a directory of files into logical groups. The directory "${request.directory_path}" contains the following files:
 
 ${filesList}
-
-Your task is to create meaningful organizational groups that best represent the content.
+${guidanceSection}Your task is to create meaningful organizational groups that best represent the content.
 
 INSTRUCTIONS:
 1. Analyze the files and identify natural patterns (dates, topics, content types, events, etc.)
-2. Determine the organizational strategy that creates logical, coherent groups
+2. ${strategyInstruction}
 3. Assign files to groups based on their content
 4. If a file contains content that genuinely belongs to multiple groups (e.g., a page with content from two different meetings), include it in both groups
 5. For files without content (binary/ref files with no OCR), use the filename and metadata to infer which group it belongs to

@@ -5,8 +5,9 @@
  * and groups files into logical collections using DeepSeek-V3
  */
 
-import type { Env, OrganizeRequest } from './types';
+import type { Env, OrganizeRequest, StrategizeRequest } from './types';
 import { processOrganizeRequest } from './service';
+import { processStrategizeRequest } from './strategize-service';
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
@@ -38,11 +39,11 @@ export default {
     // Route handling
     const url = new URL(request.url);
 
-    // Main endpoint: POST /organize
-    if (url.pathname !== '/organize') {
+    // Check for valid endpoints
+    if (url.pathname !== '/organize' && url.pathname !== '/strategize') {
       return new Response(
         JSON.stringify({
-          error: 'Not found. Available endpoint: POST /organize'
+          error: 'Not found. Available endpoints: POST /organize, POST /strategize'
         }),
         {
           status: 404,
@@ -56,9 +57,9 @@ export default {
 
     try {
       // Parse request body
-      let body: OrganizeRequest;
+      let body: OrganizeRequest | StrategizeRequest;
       try {
-        body = await request.json() as OrganizeRequest;
+        body = await request.json();
       } catch (e) {
         return new Response(
           JSON.stringify({ error: 'Invalid JSON in request body' }),
@@ -102,8 +103,13 @@ export default {
         throw new Error('MODEL_NAME not configured');
       }
 
-      // Process the organization request
-      const result = await processOrganizeRequest(body, env);
+      // Route to appropriate handler
+      let result;
+      if (url.pathname === '/strategize') {
+        result = await processStrategizeRequest(body as StrategizeRequest, env);
+      } else {
+        result = await processOrganizeRequest(body as OrganizeRequest, env);
+      }
 
       // Return success response
       return new Response(JSON.stringify(result), {
