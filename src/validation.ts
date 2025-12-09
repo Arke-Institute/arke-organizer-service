@@ -4,6 +4,7 @@
  */
 
 import type { OrganizeRequest, OrganizeStructuredOutput, OrganizeGroup, StrategizeRequest } from './types';
+import { buildFilenameMatcher, type MatchResult } from './utils/fuzzy-filename-match';
 
 /**
  * Validate the incoming request
@@ -59,6 +60,7 @@ export interface ValidationResult {
  * Validate the LLM response
  * Ensures all files are accounted for and group names are valid
  * Returns warnings for recoverable issues instead of throwing errors
+ * Uses fuzzy filename matching to handle LLM variations
  */
 export function validateResponse(
   response: OrganizeStructuredOutput,
@@ -83,8 +85,11 @@ export function validateResponse(
     validateGroup(group, index);
   });
 
-  // Check that all files are accounted for and sanitize directory paths
-  const allFilesInResponse = new Set<string>();
+  // Build fuzzy matcher for filename resolution
+  const matchFilename = buildFilenameMatcher(requestFiles);
+
+  // Track which original files have been accounted for
+  const accountedOriginalFiles = new Set<string>();
   const sanitizedGroups: OrganizeGroup[] = [];
 
   // Helper to detect directory paths (ends with /)
@@ -92,16 +97,36 @@ export function validateResponse(
     return filename.endsWith('/');
   };
 
-  // Process groups and filter out directory paths
+  // Helper to resolve LLM filename to original filename with logging
+  const resolveFilename = (llmFilename: string): string | null => {
+    const result = matchFilename(llmFilename);
+    if (result.match && result.confidence !== 'exact') {
+      // Log fuzzy matches for observability
+      console.log(`[FuzzyMatch] "${llmFilename}" → "${result.match}" (${result.confidence})`);
+    }
+    return result.match;
+  };
+
+  // Process groups and filter out directory paths, resolving filenames
   response.groups.forEach(group => {
     const sanitizedFiles: string[] = [];
 
     group.files.forEach(file => {
       if (isDirectoryPath(file)) {
         warnings.push(`Directory path "${file}" found in group "${group.group_name}" - directories are not valid file entries and have been removed`);
+        return;
+      }
+
+      const originalFilename = resolveFilename(file);
+      if (originalFilename) {
+        sanitizedFiles.push(originalFilename);
+        accountedOriginalFiles.add(originalFilename);
+        if (originalFilename !== file) {
+          warnings.push(`Filename "${file}" resolved to "${originalFilename}" via fuzzy matching`);
+        }
       } else {
+        // File not found in request - will be filtered out later as extra file
         sanitizedFiles.push(file);
-        allFilesInResponse.add(file);
       }
     });
 
@@ -116,25 +141,44 @@ export function validateResponse(
     }
   });
 
-  // Process ungrouped files and filter out directory paths
+  // Process ungrouped files and filter out directory paths, resolving filenames
   const sanitizedUngrouped: string[] = [];
   response.ungrouped_files.forEach(file => {
     if (isDirectoryPath(file)) {
       warnings.push(`Directory path "${file}" found in ungrouped_files - directories are not valid file entries and have been removed`);
+      return;
+    }
+
+    const originalFilename = resolveFilename(file);
+    if (originalFilename) {
+      sanitizedUngrouped.push(originalFilename);
+      accountedOriginalFiles.add(originalFilename);
+      if (originalFilename !== file) {
+        warnings.push(`Filename "${file}" resolved to "${originalFilename}" via fuzzy matching`);
+      }
     } else {
+      // File not found in request - will be filtered out later as extra file
       sanitizedUngrouped.push(file);
-      allFilesInResponse.add(file);
     }
   });
 
-  // Check that all request files are present
-  const missingFiles = requestFiles.filter(file => !allFilesInResponse.has(file));
+  // Check that all request files are present (using accountedOriginalFiles)
+  const missingFiles = requestFiles.filter(file => !accountedOriginalFiles.has(file));
   if (missingFiles.length > 0) {
-    throw new Error('Files not accounted for in response: ' + missingFiles.join(', '));
+    // Instead of throwing, add missing files to ungrouped as a fallback
+    // This handles cases where the LLM completely omits files from its response
+    console.warn(`[Validation] LLM omitted ${missingFiles.length} files - adding to ungrouped: ${missingFiles.join(', ')}`);
+    warnings.push(`LLM omitted ${missingFiles.length} files from response - added to ungrouped_files as fallback`);
+    sanitizedUngrouped.push(...missingFiles);
+    missingFiles.forEach(f => accountedOriginalFiles.add(f));
   }
 
-  // Check for extra files (that aren't directory paths - those are already handled)
-  const extraFiles = Array.from(allFilesInResponse).filter(file => !requestFiles.includes(file));
+  // Check for extra files (files in response that don't map to any request file)
+  const allResponseFiles = new Set<string>();
+  sanitizedGroups.forEach(g => g.files.forEach(f => allResponseFiles.add(f)));
+  sanitizedUngrouped.forEach(f => allResponseFiles.add(f));
+
+  const extraFiles = Array.from(allResponseFiles).filter(file => !requestFiles.includes(file));
   if (extraFiles.length > 0) {
     warnings.push(`Response contains files not in request: ${extraFiles.join(', ')} - these have been removed`);
     // Filter out extra files from sanitized response
