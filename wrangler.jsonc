@@ -3,12 +3,32 @@
   "main": "src/index.ts",
   "compatibility_date": "2024-01-01",
 
+  // Service bindings for callbacks and IPFS operations
+  "services": [
+    { "binding": "IPFS_WRAPPER", "service": "arke-ipfs-api" },
+    { "binding": "ORCHESTRATOR", "service": "arke-orchestrator" }
+  ],
+
+  // Durable Object for async batch processing
+  "durable_objects": {
+    "bindings": [
+      { "name": "ORGANIZER_BATCH_DO", "class_name": "OrganizerBatchDO" }
+    ]
+  },
+
+  "migrations": [
+    { "tag": "v1", "new_classes": ["OrganizerBatchDO"] }
+  ],
+
   // Environment variables
   "vars": {
     "DEEPINFRA_BASE_URL": "https://api.deepinfra.com/v1/openai",
     "MODEL_NAME": "deepseek-ai/DeepSeek-V3-0324",
-    "MAX_TOKENS": 163839,  // V3-0324 actual limit (V3 only has 32K)
-    "TOKEN_BUDGET_PERCENTAGE": 0.3 // set to this to avoid overwhelming the LLM, and force it to use every file. using a lower percentage just means more breadth.  
+    "MAX_TOKENS": 163839,
+    "TOKEN_BUDGET_PERCENTAGE": 0.3,
+    "MAX_RETRIES_PER_PI": "3",
+    "MAX_CALLBACK_RETRIES": "3",
+    "ALARM_INTERVAL_MS": "100"
   },
 
   // Note: Set DEEPINFRA_API_KEY as a secret using:
