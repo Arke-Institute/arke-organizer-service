@@ -1,47 +1,110 @@
 /**
- * OrganizerBatchDO - Durable Object for async batch processing
+ * OrganizerBatchDO - SQLite-backed Durable Object for async batch processing
  *
- * State Machine: PROCESSING → PUBLISHING → CALLBACK → DONE
+ * PI-ONLY Architecture: Receives only PIs, fetches all context from IPFS
  *
- * For 'organize' operation:
- * 1. PROCESSING: Call LLM to organize files
- * 2. PUBLISHING: Create group entities, update parent entity
- * 3. CALLBACK: Send results to orchestrator
- * 4. DONE: Cleanup
+ * Uses SQLite storage for robustness with large content:
+ * - 10GB per DO (vs 128KB per value with KV)
+ * - Can store full file contents for complex directories
+ * - Files stored in separate rows for efficient access
  *
- * For 'strategize' operation:
- * 1. PROCESSING: Call LLM to get strategy
- * 2. (skip PUBLISHING - no entity changes)
- * 3. CALLBACK: Send results to orchestrator
- * 4. DONE: Cleanup
+ * State Machine: PENDING → PROCESSING → PUBLISHING → CALLBACK → DONE
  */
 
 import { DurableObject } from 'cloudflare:workers';
 import type {
   Env,
   ProcessRequest,
-  OrganizerBatchState,
   PIState,
-  StrategizeDOState,
   Phase,
   OrganizerCallbackPayload,
   OrganizeRequest,
   OrganizeResponse,
-  StrategizeRequest,
-  StrategizeResponse,
+  OrganizeFileInput,
+  PINode,
 } from '../types';
 import { IPFSClient } from '../services/ipfs-client';
 import { withRetry } from '../lib/retry';
 import { processOrganizeRequest } from '../service';
-import { processStrategizeRequest } from '../strategize-service';
+import { fetchOrganizerContext } from '../lib/context-fetcher';
 
 export class OrganizerBatchDO extends DurableObject<Env> {
-  private state: OrganizerBatchState | null = null;
+  private sql: SqlStorage;
   private ipfsClient: IPFSClient;
+  private initialized = false;
 
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
+    this.sql = ctx.storage.sql;
     this.ipfsClient = new IPFSClient(env.IPFS_WRAPPER);
+  }
+
+  /**
+   * Initialize SQL tables if needed
+   */
+  private initTables(): void {
+    if (this.initialized) return;
+
+    this.sql.exec(`
+      CREATE TABLE IF NOT EXISTS batch_state (
+        id INTEGER PRIMARY KEY CHECK (id = 1),
+        batch_id TEXT NOT NULL,
+        chunk_id TEXT NOT NULL,
+        custom_prompt TEXT,
+        phase TEXT NOT NULL,
+        started_at TEXT NOT NULL,
+        completed_at TEXT,
+        callback_retry_count INTEGER DEFAULT 0,
+        global_error TEXT
+      );
+
+      CREATE TABLE IF NOT EXISTS pi_list (
+        pi TEXT PRIMARY KEY
+      );
+
+      CREATE TABLE IF NOT EXISTS pi_state (
+        pi TEXT PRIMARY KEY,
+        status TEXT NOT NULL DEFAULT 'pending',
+        retry_count INTEGER DEFAULT 0,
+        tip TEXT,
+        directory_path TEXT,
+        components_json TEXT,
+        new_parent_tip TEXT,
+        new_parent_version INTEGER,
+        ungrouped_files_json TEXT,
+        error TEXT
+      );
+
+      CREATE TABLE IF NOT EXISTS pi_files (
+        pi TEXT NOT NULL,
+        idx INTEGER NOT NULL,
+        name TEXT NOT NULL,
+        type TEXT NOT NULL,
+        content TEXT NOT NULL,
+        original_filename TEXT,
+        metadata_json TEXT,
+        PRIMARY KEY (pi, idx)
+      );
+
+      CREATE TABLE IF NOT EXISTS pi_organize_result (
+        pi TEXT PRIMARY KEY,
+        result_json TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS pi_group_entities (
+        pi TEXT NOT NULL,
+        idx INTEGER NOT NULL,
+        group_name TEXT NOT NULL,
+        group_pi TEXT NOT NULL,
+        tip TEXT NOT NULL,
+        ver INTEGER NOT NULL,
+        files_json TEXT NOT NULL,
+        description TEXT NOT NULL,
+        PRIMARY KEY (pi, idx)
+      );
+    `);
+
+    this.initialized = true;
   }
 
   async fetch(request: Request): Promise<Response> {
@@ -62,76 +125,50 @@ export class OrganizerBatchDO extends DurableObject<Env> {
   // Entry Point: POST /process
   // ─────────────────────────────────────────────────────────────
   private async handleProcess(request: Request): Promise<Response> {
+    this.initTables();
     const body = (await request.json()) as ProcessRequest;
 
     // Check if already processing
-    await this.loadState();
-    if (this.state && this.state.phase !== 'DONE' && this.state.phase !== 'ERROR') {
-      return Response.json({
-        status: 'already_processing',
-        chunk_id: this.state.chunk_id,
-        phase: this.state.phase,
-      });
+    const existingRows = [...this.sql.exec('SELECT phase FROM batch_state WHERE id = 1')];
+    if (existingRows.length > 0) {
+      const phase = existingRows[0].phase as Phase;
+      if (phase !== 'DONE' && phase !== 'ERROR') {
+        return Response.json({
+          status: 'already_processing',
+          chunk_id: body.chunk_id,
+          phase,
+        });
+      }
+      // Clear old state for reprocessing
+      this.clearAllTables();
+    }
+
+    if (!body.pis || body.pis.length === 0) {
+      return Response.json({ error: 'Missing pis array' }, { status: 400 });
     }
 
     const chunkId = `${body.batch_id}:${body.chunk_id}`;
-    console.log(`[Organizer:${chunkId}] Starting ${body.operation} operation`);
+    console.log(`[Organizer:${chunkId}] Starting with ${body.pis.length} PIs`);
 
-    // Initialize state based on operation type
-    if (body.operation === 'strategize') {
-      if (!body.strategize) {
-        return Response.json({ error: 'Missing strategize data' }, { status: 400 });
-      }
+    // Initialize batch state
+    this.sql.exec(
+      `INSERT INTO batch_state (id, batch_id, chunk_id, custom_prompt, phase, started_at, callback_retry_count)
+       VALUES (1, ?, ?, ?, 'PENDING', ?, 0)`,
+      body.batch_id,
+      body.chunk_id,
+      body.custom_prompt || null,
+      new Date().toISOString()
+    );
 
-      this.state = {
-        batch_id: body.batch_id,
-        chunk_id: body.chunk_id,
-        r2_prefix: body.r2_prefix,
-        operation: 'strategize',
-        custom_prompt: body.custom_prompt,
-        phase: 'PROCESSING',
-        started_at: new Date().toISOString(),
-        strategize: {
-          status: 'pending',
-          retry_count: 0,
-          directory_path: body.strategize.directory_path,
-          files: body.strategize.files,
-          total_file_count: body.strategize.total_file_count,
-          chunk_count: body.strategize.chunk_count,
-        },
-        callback_retry_count: 0,
-      };
-    } else {
-      // organize operation
-      if (!body.pis || body.pis.length === 0) {
-        return Response.json({ error: 'Missing pis array' }, { status: 400 });
-      }
-
-      this.state = {
-        batch_id: body.batch_id,
-        chunk_id: body.chunk_id,
-        r2_prefix: body.r2_prefix,
-        operation: 'organize',
-        custom_prompt: body.custom_prompt,
-        strategy_guidance: body.strategy_guidance,
-        phase: 'PROCESSING',
-        started_at: new Date().toISOString(),
-        pis: body.pis.map((p) => ({
-          pi: p.pi,
-          current_tip: p.current_tip,
-          directory_path: p.directory_path,
-          status: 'pending' as const,
-          retry_count: 0,
-          files: p.files,
-          parent_components: p.parent_components,
-        })),
-        callback_retry_count: 0,
-      };
-
-      console.log(`[Organizer:${chunkId}] Initialized with ${body.pis.length} directories`);
+    // Initialize PI list and states
+    for (const pi of body.pis) {
+      this.sql.exec('INSERT INTO pi_list (pi) VALUES (?)', pi);
+      this.sql.exec(
+        'INSERT INTO pi_state (pi, status, retry_count) VALUES (?, ?, 0)',
+        pi,
+        'pending'
+      );
     }
-
-    await this.saveState();
 
     // Schedule immediate processing
     await this.ctx.storage.setAlarm(Date.now() + 100);
@@ -139,8 +176,48 @@ export class OrganizerBatchDO extends DurableObject<Env> {
     return Response.json({
       status: 'accepted',
       chunk_id: body.chunk_id,
-      operation: body.operation,
-      total_pis: body.operation === 'organize' ? body.pis?.length : 1,
+      total_pis: body.pis.length,
+    });
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // Status Handler
+  // ─────────────────────────────────────────────────────────────
+  private async handleStatus(): Promise<Response> {
+    this.initTables();
+
+    const stateRows = [...this.sql.exec('SELECT * FROM batch_state WHERE id = 1')];
+    if (stateRows.length === 0) {
+      return Response.json({ status: 'not_found' });
+    }
+    const state = stateRows[0];
+
+    // Count statuses
+    const countRows = [...this.sql.exec(`
+      SELECT
+        SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) as pending,
+        SUM(CASE WHEN status = 'fetching' THEN 1 ELSE 0 END) as fetching,
+        SUM(CASE WHEN status = 'processing' THEN 1 ELSE 0 END) as processing,
+        SUM(CASE WHEN status = 'publishing' THEN 1 ELSE 0 END) as publishing,
+        SUM(CASE WHEN status = 'done' THEN 1 ELSE 0 END) as done,
+        SUM(CASE WHEN status = 'error' THEN 1 ELSE 0 END) as failed,
+        COUNT(*) as total
+      FROM pi_state
+    `)];
+    const counts = countRows[0];
+
+    return Response.json({
+      status: (state.phase as string).toLowerCase(),
+      phase: state.phase,
+      progress: {
+        total: counts?.total || 0,
+        pending: counts?.pending || 0,
+        fetching: counts?.fetching || 0,
+        processing: counts?.processing || 0,
+        publishing: counts?.publishing || 0,
+        done: counts?.done || 0,
+        failed: counts?.failed || 0,
+      },
     });
   }
 
@@ -148,13 +225,21 @@ export class OrganizerBatchDO extends DurableObject<Env> {
   // Alarm Handler: State Machine
   // ─────────────────────────────────────────────────────────────
   async alarm(): Promise<void> {
-    await this.loadState();
-    if (!this.state) return;
+    this.initTables();
 
-    const chunkId = `${this.state.batch_id}:${this.state.chunk_id}`;
+    const stateRows = [...this.sql.exec('SELECT * FROM batch_state WHERE id = 1')];
+    if (stateRows.length === 0) return;
+    const state = stateRows[0];
+
+    const chunkId = `${state.batch_id}:${state.chunk_id}`;
 
     try {
-      switch (this.state.phase) {
+      switch (state.phase as Phase) {
+        case 'PENDING':
+          // Move to processing phase
+          this.sql.exec("UPDATE batch_state SET phase = 'PROCESSING' WHERE id = 1");
+          await this.scheduleNextAlarm();
+          break;
         case 'PROCESSING':
           await this.processPhase();
           break;
@@ -171,161 +256,165 @@ export class OrganizerBatchDO extends DurableObject<Env> {
       }
     } catch (error) {
       console.error(`[Organizer:${chunkId}] Alarm error:`, error);
-      this.state.global_error = (error as Error).message;
-      // Move to callback to report error
-      this.state.phase = 'CALLBACK';
-      await this.saveState();
+      this.sql.exec(
+        "UPDATE batch_state SET phase = 'CALLBACK', global_error = ? WHERE id = 1",
+        (error as Error).message
+      );
       await this.scheduleNextAlarm();
     }
   }
 
   // ─────────────────────────────────────────────────────────────
-  // PROCESSING Phase
+  // PROCESSING Phase - Fetch context and call LLM
   // ─────────────────────────────────────────────────────────────
   private async processPhase(): Promise<void> {
-    const chunkId = `${this.state!.batch_id}:${this.state!.chunk_id}`;
+    const stateRows = [...this.sql.exec('SELECT * FROM batch_state WHERE id = 1')];
+    const state = stateRows[0];
+    const chunkId = `${state.batch_id}:${state.chunk_id}`;
     const maxRetries = parseInt(this.env.MAX_RETRIES_PER_PI || '3');
 
-    if (this.state!.operation === 'strategize') {
-      await this.processStrategize(chunkId, maxRetries);
-    } else {
-      await this.processOrganize(chunkId, maxRetries);
-    }
-  }
+    // Get pending PIs
+    const pendingRows = [...this.sql.exec(
+      "SELECT pi FROM pi_state WHERE status IN ('pending', 'fetching')"
+    )];
 
-  private async processStrategize(chunkId: string, maxRetries: number): Promise<void> {
-    const strat = this.state!.strategize!;
-
-    if (strat.status === 'done' || strat.status === 'error') {
-      // Move to callback (no publishing for strategize)
-      console.log(`[Organizer:${chunkId}] Strategize complete, moving to CALLBACK`);
-      this.state!.phase = 'CALLBACK';
-      await this.saveState();
-      await this.scheduleNextAlarm();
-      return;
-    }
-
-    console.log(`[Organizer:${chunkId}] Processing strategize for ${strat.directory_path}`);
-    strat.status = 'processing';
-    await this.saveState();
-
-    try {
-      const request: StrategizeRequest = {
-        directory_path: strat.directory_path,
-        files: strat.files,
-        total_file_count: strat.total_file_count,
-        chunk_count: strat.chunk_count,
-        custom_prompt: this.state!.custom_prompt,
-      };
-
-      const result = await processStrategizeRequest(request, this.env);
-
-      strat.status = 'done';
-      strat.result = result;
-      console.log(`[Organizer:${chunkId}] ✓ Strategize complete: should_coordinate=${result.should_coordinate}`);
-    } catch (error) {
-      strat.retry_count++;
-      const errorMsg = (error as Error).message || 'Unknown error';
-
-      if (strat.retry_count >= maxRetries) {
-        strat.status = 'error';
-        strat.error = errorMsg;
-        console.error(`[Organizer:${chunkId}] ✗ Strategize failed (max retries): ${errorMsg}`);
-      } else {
-        strat.status = 'pending'; // Will retry
-        console.warn(`[Organizer:${chunkId}] ⟳ Strategize retry ${strat.retry_count}/${maxRetries}`);
-      }
-    }
-
-    await this.saveState();
-    await this.scheduleNextAlarm();
-  }
-
-  private async processOrganize(chunkId: string, maxRetries: number): Promise<void> {
-    const pending = this.state!.pis!.filter((p) => p.status === 'pending');
-
-    if (pending.length === 0) {
+    if (pendingRows.length === 0) {
       console.log(`[Organizer:${chunkId}] Processing complete, moving to PUBLISHING`);
-      this.state!.phase = 'PUBLISHING';
-      await this.saveState();
+      this.sql.exec("UPDATE batch_state SET phase = 'PUBLISHING' WHERE id = 1");
       await this.scheduleNextAlarm();
       return;
     }
 
-    console.log(`[Organizer:${chunkId}] Processing ${pending.length} directories`);
+    console.log(`[Organizer:${chunkId}] Processing ${pendingRows.length} PIs`);
 
-    // Mark as processing
-    for (const pi of pending) {
-      pi.status = 'processing';
-    }
-    await this.saveState();
-
-    // Process all in parallel (LLM calls)
+    // Process all in parallel
     const results = await Promise.allSettled(
-      pending.map((pi) => this.processOnePI(pi))
+      pendingRows.map((row) => this.processOnePI(row.pi as string, state))
     );
 
     // Update states based on results
-    for (let i = 0; i < pending.length; i++) {
-      const pi = pending[i];
+    for (let i = 0; i < pendingRows.length; i++) {
+      const pi = pendingRows[i].pi as string;
       const result = results[i];
 
       if (result.status === 'fulfilled') {
-        pi.status = 'publishing'; // Ready for entity creation
-        pi.organize_result = result.value;
-        console.log(`[Organizer:${chunkId}] ✓ LLM done for ${pi.directory_path}, groups=${result.value?.groups?.length}`);
-      } else {
-        pi.retry_count++;
-        const errorMsg = result.reason?.message || 'Unknown error';
+        // Count groups for logging
+        const resultRows = [...this.sql.exec(
+          'SELECT result_json FROM pi_organize_result WHERE pi = ?', pi
+        )];
+        const groupCount = resultRows.length > 0
+          ? JSON.parse(resultRows[0].result_json as string).groups?.length || 0
+          : 0;
 
-        if (pi.retry_count >= maxRetries) {
-          pi.status = 'error';
-          pi.error = errorMsg;
-          console.error(`[Organizer:${chunkId}] ✗ ${pi.directory_path} (max retries): ${errorMsg}`);
+        this.sql.exec("UPDATE pi_state SET status = 'publishing' WHERE pi = ?", pi);
+        console.log(`[Organizer:${chunkId}] ✓ LLM done for ${pi.slice(-8)}, groups=${groupCount}`);
+      } else {
+        const errorMsg = result.reason?.message || 'Unknown error';
+        const retryRows = [...this.sql.exec('SELECT retry_count FROM pi_state WHERE pi = ?', pi)];
+        const currentRetry = (retryRows[0]?.retry_count as number) || 0;
+        const newRetry = currentRetry + 1;
+
+        if (newRetry >= maxRetries) {
+          this.sql.exec(
+            "UPDATE pi_state SET status = 'error', retry_count = ?, error = ? WHERE pi = ?",
+            newRetry,
+            errorMsg,
+            pi
+          );
+          console.error(`[Organizer:${chunkId}] ✗ ${pi.slice(-8)} (max retries): ${errorMsg}`);
         } else {
-          pi.status = 'pending'; // Will retry
-          console.warn(`[Organizer:${chunkId}] ⟳ ${pi.directory_path} retry ${pi.retry_count}/${maxRetries}`);
+          this.sql.exec(
+            "UPDATE pi_state SET status = 'pending', retry_count = ? WHERE pi = ?",
+            newRetry,
+            pi
+          );
+          console.warn(`[Organizer:${chunkId}] ⟳ ${pi.slice(-8)} retry ${newRetry}/${maxRetries}`);
         }
       }
     }
 
-    await this.saveState();
     await this.scheduleNextAlarm();
   }
 
-  private async processOnePI(pi: PIState): Promise<OrganizeResponse> {
-    const request: OrganizeRequest = {
-      directory_path: pi.directory_path,
-      files: pi.files,
-      custom_prompt: this.state!.custom_prompt,
-      strategy_guidance: this.state!.strategy_guidance,
-    };
+  private async processOnePI(pi: string, state: Record<string, SqlStorageValue>): Promise<void> {
+    // 1. Fetch context from IPFS
+    this.sql.exec("UPDATE pi_state SET status = 'fetching' WHERE pi = ?", pi);
+    const context = await fetchOrganizerContext(pi, this.ipfsClient);
 
-    return await processOrganizeRequest(request, this.env);
-  }
+    // Store context in SQL
+    this.sql.exec(
+      `UPDATE pi_state SET tip = ?, directory_path = ?, components_json = ? WHERE pi = ?`,
+      context.tip,
+      context.directoryPath,
+      JSON.stringify(context.components),
+      pi
+    );
 
-  // ─────────────────────────────────────────────────────────────
-  // PUBLISHING Phase (only for organize operation)
-  // ─────────────────────────────────────────────────────────────
-  private async publishPhase(): Promise<void> {
-    const chunkId = `${this.state!.batch_id}:${this.state!.chunk_id}`;
+    // Store files separately
+    for (let i = 0; i < context.files.length; i++) {
+      const file = context.files[i];
+      this.sql.exec(
+        `INSERT OR REPLACE INTO pi_files (pi, idx, name, type, content, original_filename, metadata_json)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        pi,
+        i,
+        file.name,
+        file.type,
+        file.content,
+        file.original_filename || null,
+        file.metadata ? JSON.stringify(file.metadata) : null
+      );
+    }
 
-    // Strategize doesn't need publishing
-    if (this.state!.operation === 'strategize') {
-      this.state!.phase = 'CALLBACK';
-      await this.saveState();
-      await this.scheduleNextAlarm();
+    // 2. Skip if too few files to organize
+    if (context.files.length < 3) {
+      console.log(`[Organizer] ${pi.slice(-8)} has only ${context.files.length} files, skipping`);
+      this.sql.exec("UPDATE pi_state SET status = 'done' WHERE pi = ?", pi);
+      // Clear files since we're done
+      this.sql.exec('DELETE FROM pi_files WHERE pi = ?', pi);
       return;
     }
 
-    const toPublish = this.state!.pis!.filter(
-      (p) => p.status === 'publishing' && p.organize_result && !p.new_parent_tip
+    // 3. Call LLM to organize
+    this.sql.exec("UPDATE pi_state SET status = 'processing' WHERE pi = ?", pi);
+    const request: OrganizeRequest = {
+      directory_path: context.directoryPath,
+      files: context.files,
+      custom_prompt: state.custom_prompt as string | undefined,
+    };
+
+    const result = await processOrganizeRequest(request, this.env);
+
+    // Store result
+    this.sql.exec(
+      'INSERT OR REPLACE INTO pi_organize_result (pi, result_json) VALUES (?, ?)',
+      pi,
+      JSON.stringify(result)
     );
+
+    // Clear files after processing to save space
+    this.sql.exec('DELETE FROM pi_files WHERE pi = ?', pi);
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // PUBLISHING Phase - Create entities
+  // ─────────────────────────────────────────────────────────────
+  private async publishPhase(): Promise<void> {
+    const stateRows = [...this.sql.exec('SELECT * FROM batch_state WHERE id = 1')];
+    const state = stateRows[0];
+    const chunkId = `${state.batch_id}:${state.chunk_id}`;
+
+    // Get PIs that need publishing (have organize_result but no new_parent_tip)
+    const toPublish = [...this.sql.exec(`
+      SELECT ps.pi, ps.tip, ps.directory_path, ps.components_json, por.result_json
+      FROM pi_state ps
+      JOIN pi_organize_result por ON ps.pi = por.pi
+      WHERE ps.status = 'publishing' AND ps.new_parent_tip IS NULL
+    `)];
 
     if (toPublish.length === 0) {
       console.log(`[Organizer:${chunkId}] Publishing complete, moving to CALLBACK`);
-      this.state!.phase = 'CALLBACK';
-      await this.saveState();
+      this.sql.exec("UPDATE batch_state SET phase = 'CALLBACK' WHERE id = 1");
       await this.scheduleNextAlarm();
       return;
     }
@@ -333,29 +422,44 @@ export class OrganizerBatchDO extends DurableObject<Env> {
     console.log(`[Organizer:${chunkId}] Publishing ${toPublish.length} directories`);
 
     // Process one at a time to avoid overwhelming IPFS
-    // (Each directory creates multiple entities)
-    const pi = toPublish[0];
+    const row = toPublish[0];
+    const pi = row.pi as string;
 
     try {
-      await this.publishOnePI(pi);
-      pi.status = 'done';
-      console.log(`[Organizer:${chunkId}] ✓ Published ${pi.directory_path} v${pi.new_parent_version}`);
+      const components = JSON.parse(row.components_json as string) as Record<string, string>;
+      const organizeResult = JSON.parse(row.result_json as string) as OrganizeResponse;
+
+      await this.publishOnePI(pi, row.tip as string, components, organizeResult);
+
+      this.sql.exec("UPDATE pi_state SET status = 'done' WHERE pi = ?", pi);
+
+      // Get new version for logging
+      const updatedRows = [...this.sql.exec(
+        'SELECT new_parent_version FROM pi_state WHERE pi = ?', pi
+      )];
+      const newVersion = updatedRows[0]?.new_parent_version;
+      console.log(`[Organizer:${chunkId}] ✓ Published ${pi.slice(-8)} v${newVersion}`);
     } catch (error) {
-      pi.status = 'error';
-      pi.error = `Publish failed: ${(error as Error).message}`;
-      console.error(`[Organizer:${chunkId}] ✗ Publish ${pi.directory_path}: ${pi.error}`);
+      const errorMsg = `Publish failed: ${(error as Error).message}`;
+      this.sql.exec(
+        "UPDATE pi_state SET status = 'error', error = ? WHERE pi = ?",
+        errorMsg,
+        pi
+      );
+      console.error(`[Organizer:${chunkId}] ✗ Publish ${pi.slice(-8)}: ${errorMsg}`);
     }
 
-    await this.saveState();
     await this.scheduleNextAlarm();
   }
 
-  private async publishOnePI(pi: PIState): Promise<void> {
-    const response = pi.organize_result!;
-    const groups = response.groups;
-
-    // Track created group entities
-    pi.group_entities = [];
+  private async publishOnePI(
+    pi: string,
+    tip: string,
+    components: Record<string, string>,
+    organizeResult: OrganizeResponse
+  ): Promise<void> {
+    const groups = organizeResult.groups;
+    let groupIdx = 0;
 
     // 1. Create new entity for each group
     for (const group of groups) {
@@ -363,11 +467,11 @@ export class OrganizerBatchDO extends DurableObject<Env> {
       const groupComponents: Record<string, string> = {};
 
       for (const filename of group.files) {
-        if (!pi.parent_components[filename]) {
+        if (!components[filename]) {
           console.warn(`[Organizer] Component not found: ${filename}`);
           continue;
         }
-        groupComponents[filename] = pi.parent_components[filename];
+        groupComponents[filename] = components[filename];
       }
 
       // Skip if no valid components
@@ -381,23 +485,28 @@ export class OrganizerBatchDO extends DurableObject<Env> {
         () => this.ipfsClient.createEntity({
           type: 'PI',
           components: groupComponents,
-          parent_pi: pi.pi,
+          parent_pi: pi,
           children_pi: [],
           note: `Reorganization group: ${group.group_name}`,
         }),
         { maxRetries: 3, baseDelayMs: 500 }
       );
 
-      pi.group_entities.push({
-        group_name: group.group_name,
-        pi: groupEntity.pi,
-        tip: groupEntity.tip,
-        ver: groupEntity.ver,
-        files: group.files,
-        description: group.description,
-      });
+      // Store group entity
+      this.sql.exec(
+        `INSERT INTO pi_group_entities (pi, idx, group_name, group_pi, tip, ver, files_json, description)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        pi,
+        groupIdx++,
+        group.group_name,
+        groupEntity.id,
+        groupEntity.tip,
+        groupEntity.ver,
+        JSON.stringify(group.files),
+        group.description
+      );
 
-      console.log(`[Organizer] Created group ${group.group_name} (PI: ${groupEntity.pi})`);
+      console.log(`[Organizer] Created group ${group.group_name} (PI: ${groupEntity.id})`);
     }
 
     // 2. Build list of grouped files to remove from parent
@@ -409,10 +518,14 @@ export class OrganizerBatchDO extends DurableObject<Env> {
     }
 
     // Store ungrouped files
-    pi.ungrouped_files = response.ungrouped_files;
+    this.sql.exec(
+      'UPDATE pi_state SET ungrouped_files_json = ? WHERE pi = ?',
+      JSON.stringify(organizeResult.ungrouped_files),
+      pi
+    );
 
     // 3. Upload reorganization description
-    const descriptionText = `# Reorganization Summary\n\n${response.reorganization_description}\n\n## Groups Created\n\n${groups
+    const descriptionText = `# Reorganization Summary\n\n${organizeResult.reorganization_description}\n\n## Groups Created\n\n${groups
       .map((g) => `- **${g.group_name}**: ${g.description}`)
       .join('\n')}`;
 
@@ -421,21 +534,20 @@ export class OrganizerBatchDO extends DurableObject<Env> {
     // 4. Build list of components to remove
     const componentsToRemove: string[] = [];
     for (const filename of groupedFiles) {
-      if (pi.parent_components[filename]) {
+      if (components[filename]) {
         componentsToRemove.push(filename);
       }
     }
 
     // 5. Update parent entity with retry for CAS conflicts
-    // IMPORTANT: Fetch fresh tip on each retry to handle stale tip bug
     const parentUpdate = await withRetry(
       async () => {
         // Always fetch fresh tip before updating to avoid CAS failures
-        const freshEntity = await this.ipfsClient.getEntity(pi.pi);
+        const freshEntity = await this.ipfsClient.getEntity(pi);
         const freshTip = freshEntity.tip;
 
         return this.ipfsClient.appendVersion({
-          pi: pi.pi,
+          id: pi,
           expect_tip: freshTip,
           components: {
             'reorganization-description.txt': descCid,
@@ -447,22 +559,28 @@ export class OrganizerBatchDO extends DurableObject<Env> {
       { maxRetries: 3, baseDelayMs: 500 }
     );
 
-    pi.new_parent_tip = parentUpdate.tip;
-    pi.new_parent_version = parentUpdate.ver;
+    this.sql.exec(
+      'UPDATE pi_state SET new_parent_tip = ?, new_parent_version = ? WHERE pi = ?',
+      parentUpdate.tip,
+      parentUpdate.ver,
+      pi
+    );
   }
 
   // ─────────────────────────────────────────────────────────────
   // CALLBACK Phase
   // ─────────────────────────────────────────────────────────────
   private async callbackPhase(): Promise<void> {
-    const chunkId = `${this.state!.batch_id}:${this.state!.chunk_id}`;
+    const stateRows = [...this.sql.exec('SELECT * FROM batch_state WHERE id = 1')];
+    const state = stateRows[0];
+    const chunkId = `${state.batch_id}:${state.chunk_id}`;
     const maxRetries = parseInt(this.env.MAX_CALLBACK_RETRIES || '3');
 
-    const payload = this.buildCallbackPayload();
+    const payload = this.buildCallbackPayload(state);
 
     try {
       // Send callback via service binding
-      const callbackPath = `/callback/organizer/${this.state!.batch_id}`;
+      const callbackPath = `/callback/organizer/${state.batch_id}`;
       console.log(`[Organizer:${chunkId}] Sending callback via service binding`);
 
       const resp = await this.env.ORCHESTRATOR.fetch(
@@ -479,135 +597,133 @@ export class OrganizerBatchDO extends DurableObject<Env> {
       }
 
       console.log(`[Organizer:${chunkId}] Callback sent: ${payload.summary.succeeded} succeeded, ${payload.summary.failed} failed`);
-      this.state!.phase = 'DONE';
-      this.state!.completed_at = new Date().toISOString();
-      await this.saveState();
+      this.sql.exec(
+        "UPDATE batch_state SET phase = 'DONE', completed_at = ? WHERE id = 1",
+        new Date().toISOString()
+      );
       await this.scheduleNextAlarm(); // Will trigger cleanup
     } catch (error) {
-      this.state!.callback_retry_count++;
+      const retryCount = ((state.callback_retry_count as number) || 0) + 1;
 
-      if (this.state!.callback_retry_count >= maxRetries) {
+      if (retryCount >= maxRetries) {
         console.error(`[Organizer:${chunkId}] Callback failed after ${maxRetries} retries`);
-        this.state!.phase = 'DONE'; // Mark done anyway
-        this.state!.completed_at = new Date().toISOString();
-        await this.saveState();
+        this.sql.exec(
+          "UPDATE batch_state SET phase = 'DONE', completed_at = ?, callback_retry_count = ? WHERE id = 1",
+          new Date().toISOString(),
+          retryCount
+        );
         await this.scheduleNextAlarm();
       } else {
         console.warn(`[Organizer:${chunkId}] Callback failed, will retry`);
-        await this.saveState();
-        const delay = 1000 * Math.pow(2, this.state!.callback_retry_count);
+        this.sql.exec(
+          'UPDATE batch_state SET callback_retry_count = ? WHERE id = 1',
+          retryCount
+        );
+        const delay = 1000 * Math.pow(2, retryCount);
         await this.ctx.storage.setAlarm(Date.now() + delay);
       }
     }
   }
 
-  private buildCallbackPayload(): OrganizerCallbackPayload {
-    const processingTime = Date.now() - new Date(this.state!.started_at).getTime();
+  private buildCallbackPayload(state: Record<string, SqlStorageValue>): OrganizerCallbackPayload {
+    const processingTime = Date.now() - new Date(state.started_at as string).getTime();
 
-    if (this.state!.operation === 'strategize') {
-      const strat = this.state!.strategize!;
+    // Get all PI states
+    const piStates = [...this.sql.exec('SELECT * FROM pi_state')];
+
+    const succeeded = piStates.filter((p) => p.status === 'done');
+    const failed = piStates.filter((p) => p.status === 'error');
+
+    // Build results with group entities
+    const results = piStates.map((pi) => {
+      // Get group entities for this PI
+      const groupRows = [...this.sql.exec(
+        'SELECT group_name, group_pi, files_json, description FROM pi_group_entities WHERE pi = ? ORDER BY idx',
+        pi.pi
+      )];
+
+      const groupEntities = groupRows.length > 0
+        ? groupRows.map((g) => ({
+            group_name: g.group_name as string,
+            pi: g.group_pi as string,  // Use 'pi' for orchestrator callback
+            files: JSON.parse(g.files_json as string) as string[],
+            description: g.description as string,
+          }))
+        : undefined;
+
       return {
-        batch_id: this.state!.batch_id,
-        chunk_id: this.state!.chunk_id,
-        operation: 'strategize',
-        status: strat.status === 'done' ? 'success' : 'error',
-        strategize_result: strat.result,
-        summary: {
-          total: 1,
-          succeeded: strat.status === 'done' ? 1 : 0,
-          failed: strat.status === 'error' ? 1 : 0,
-          processing_time_ms: processingTime,
-        },
-        error: strat.error || this.state!.global_error,
+        pi: pi.pi as string,  // Use 'pi' for orchestrator callback
+        status: (pi.status === 'done' ? 'success' : 'error') as 'success' | 'error',
+        new_tip: pi.new_parent_tip as string | undefined,
+        new_version: pi.new_parent_version as number | undefined,
+        error: pi.error as string | undefined,
+        group_entities: groupEntities,
       };
+    });
+
+    // Build new_pis array for all group entities created
+    const newPIs: PINode[] = [];
+    for (const pi of piStates) {
+      const groupRows = [...this.sql.exec(
+        'SELECT group_pi FROM pi_group_entities WHERE pi = ?',
+        pi.pi
+      )];
+
+      for (const g of groupRows) {
+        newPIs.push({
+          pi: g.group_pi as string,  // Use 'pi' for orchestrator callback
+          parent_pi: pi.pi as string,
+          children_pi: [],
+          processing_config: {
+            ocr: false,        // Already done (inherited from parent)
+            reorganize: false, // Don't reorganize recursively
+            pinax: true,       // Extract metadata
+            cheimarros: true,  // Build knowledge graph
+            describe: true,    // Generate description
+          },
+        });
+      }
     }
 
-    // organize operation
-    const succeeded = this.state!.pis!.filter((p) => p.status === 'done' && p.new_parent_tip);
-    const failed = this.state!.pis!.filter((p) => p.status === 'error');
-
     return {
-      batch_id: this.state!.batch_id,
-      chunk_id: this.state!.chunk_id,
-      operation: 'organize',
+      batch_id: state.batch_id as string,
+      chunk_id: state.chunk_id as string,
       status: failed.length === 0 ? 'success' : succeeded.length === 0 ? 'error' : 'partial',
-      results: this.state!.pis!.map((pi) => ({
-        pi: pi.pi,
-        status: pi.status === 'done' && pi.new_parent_tip ? 'success' : 'error',
-        new_parent_tip: pi.new_parent_tip,
-        new_parent_version: pi.new_parent_version,
-        group_entities: pi.group_entities,
-        ungrouped_files: pi.ungrouped_files,
-        reorganization_description: pi.organize_result?.reorganization_description,
-        llm_metrics: pi.organize_result ? {
-          validation_warnings: pi.organize_result.validation_warnings || [],
-          missing_files_count: 0, // Will be filled by orchestrator reconciliation
-          missing_files: [],
-        } : undefined,
-        error: pi.error,
-      })),
+      results,
+      new_pis: newPIs.length > 0 ? newPIs : undefined,
       summary: {
-        total: this.state!.pis!.length,
+        total: piStates.length,
         succeeded: succeeded.length,
         failed: failed.length,
         processing_time_ms: processingTime,
       },
-      error: this.state!.global_error,
+      error: state.global_error as string | undefined,
     };
   }
 
   // ─────────────────────────────────────────────────────────────
   // Helpers
   // ─────────────────────────────────────────────────────────────
+  private clearAllTables(): void {
+    this.sql.exec('DELETE FROM batch_state');
+    this.sql.exec('DELETE FROM pi_list');
+    this.sql.exec('DELETE FROM pi_state');
+    this.sql.exec('DELETE FROM pi_files');
+    this.sql.exec('DELETE FROM pi_organize_result');
+    this.sql.exec('DELETE FROM pi_group_entities');
+  }
+
   private async cleanup(): Promise<void> {
-    console.log(`[Organizer] Cleaning up DO storage`);
-    await this.ctx.storage.deleteAll();
-    this.state = null;
-  }
-
-  private async loadState(): Promise<void> {
-    this.state = (await this.ctx.storage.get<OrganizerBatchState>('state')) || null;
-  }
-
-  private async saveState(): Promise<void> {
-    if (this.state) {
-      await this.ctx.storage.put('state', this.state);
-    }
+    const stateRows = [...this.sql.exec('SELECT batch_id, chunk_id FROM batch_state WHERE id = 1')];
+    const chunkId = stateRows.length > 0
+      ? `${stateRows[0].batch_id}:${stateRows[0].chunk_id}`
+      : 'unknown';
+    console.log(`[Organizer:${chunkId}] Cleaning up DO storage`);
+    this.clearAllTables();
   }
 
   private async scheduleNextAlarm(): Promise<void> {
     const delay = parseInt(this.env.ALARM_INTERVAL_MS || '100');
     await this.ctx.storage.setAlarm(Date.now() + delay);
-  }
-
-  private async handleStatus(): Promise<Response> {
-    await this.loadState();
-
-    if (!this.state) {
-      return Response.json({ status: 'not_found' });
-    }
-
-    if (this.state.operation === 'strategize') {
-      return Response.json({
-        status: this.state.phase.toLowerCase(),
-        phase: this.state.phase,
-        operation: 'strategize',
-        strategize_status: this.state.strategize?.status,
-      });
-    }
-
-    return Response.json({
-      status: this.state.phase.toLowerCase(),
-      phase: this.state.phase,
-      operation: 'organize',
-      progress: {
-        total: this.state.pis?.length || 0,
-        pending: this.state.pis?.filter((p) => p.status === 'pending').length || 0,
-        processing: this.state.pis?.filter((p) => p.status === 'processing').length || 0,
-        publishing: this.state.pis?.filter((p) => p.status === 'publishing').length || 0,
-        done: this.state.pis?.filter((p) => p.status === 'done').length || 0,
-        failed: this.state.pis?.filter((p) => p.status === 'error').length || 0,
-      },
-    });
   }
 }

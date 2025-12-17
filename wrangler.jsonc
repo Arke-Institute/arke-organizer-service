@@ -9,15 +9,17 @@
     { "binding": "ORCHESTRATOR", "service": "arke-orchestrator" }
   ],
 
-  // Durable Object for async batch processing
+  // Durable Object - SQLite-backed for robust large content storage (10GB vs 128KB limit)
   "durable_objects": {
     "bindings": [
       { "name": "ORGANIZER_BATCH_DO", "class_name": "OrganizerBatchDO" }
     ]
   },
 
+  // DO migrations - v2 deleted old KV DO, v3 creates new SQLite DO
   "migrations": [
-    { "tag": "v1", "new_classes": ["OrganizerBatchDO"] }
+    { "tag": "v2", "deleted_classes": ["OrganizerBatchDO"] },
+    { "tag": "v3", "new_sqlite_classes": ["OrganizerBatchDO"] }
   ],
 
   // Environment variables

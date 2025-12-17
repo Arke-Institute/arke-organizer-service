@@ -4,7 +4,7 @@
  */
 
 export interface Entity {
-  pi: string;
+  id: string;
   tip: string;
   ver: number;
   components: Record<string, string>;
@@ -21,7 +21,7 @@ export interface CreateEntityRequest {
 }
 
 export interface AppendVersionRequest {
-  pi: string;
+  id: string;
   expect_tip: string;
   components?: Record<string, string>;
   components_remove?: string[];
@@ -30,7 +30,7 @@ export interface AppendVersionRequest {
 }
 
 export interface AppendVersionResult {
-  pi: string;
+  id: string;
   tip: string;
   ver: number;
 }
@@ -38,15 +38,28 @@ export interface AppendVersionResult {
 export class IPFSClient {
   constructor(private fetcher: Fetcher) {}
 
-  async getEntity(pi: string): Promise<Entity> {
-    const resp = await this.fetcher.fetch(`https://api/entities/${pi}`);
+  /**
+   * Download content from IPFS by CID
+   */
+  async downloadContent(cid: string): Promise<string> {
+    const resp = await this.fetcher.fetch(`https://api/cat/${cid}`);
     if (!resp.ok) {
       const text = await resp.text();
-      throw new Error(`Failed to get entity ${pi}: ${resp.status} - ${text}`);
+      throw new Error(`Failed to download ${cid}: ${resp.status} - ${text}`);
+    }
+    return resp.text();
+  }
+
+  async getEntity(id: string): Promise<Entity> {
+    const resp = await this.fetcher.fetch(`https://api/entities/${id}`);
+    if (!resp.ok) {
+      const text = await resp.text();
+      throw new Error(`Failed to get entity ${id}: ${resp.status} - ${text}`);
     }
     const result: any = await resp.json();
     return {
       ...result,
+      id: result.id,
       tip: result.tip || result.manifest_cid,
     };
   }
@@ -79,9 +92,17 @@ export class IPFSClient {
       throw new Error(`Failed to create entity: ${resp.status} - ${text}`);
     }
     const result: any = await resp.json();
+
+    const id = result.id;
+    const tip = result.tip || result.manifest_cid;
+
+    if (!id) {
+      throw new Error(`createEntity returned no ID. Response: ${JSON.stringify(result)}`);
+    }
+
     return {
-      pi: result.pi,
-      tip: result.tip || result.manifest_cid,
+      id,
+      tip,
       ver: result.ver,
       components: request.components,
       children_pi: request.children_pi,
@@ -90,7 +111,7 @@ export class IPFSClient {
   }
 
   async appendVersion(request: AppendVersionRequest): Promise<AppendVersionResult> {
-    const resp = await this.fetcher.fetch(`https://api/entities/${request.pi}/versions`, {
+    const resp = await this.fetcher.fetch(`https://api/entities/${request.id}/versions`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -103,11 +124,11 @@ export class IPFSClient {
     });
     if (!resp.ok) {
       const text = await resp.text();
-      throw new Error(`Failed to append version to ${request.pi}: ${resp.status} - ${text}`);
+      throw new Error(`Failed to append version to ${request.id}: ${resp.status} - ${text}`);
     }
     const result: any = await resp.json();
     return {
-      pi: result.pi,
+      id: result.id,
       tip: result.tip || result.manifest_cid,
       ver: result.ver,
     };

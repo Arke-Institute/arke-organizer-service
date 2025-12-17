@@ -176,34 +176,17 @@ export interface StrategizeStructuredOutput {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// DURABLE OBJECT PATTERN TYPES
+// DURABLE OBJECT PATTERN TYPES - PI-ONLY Architecture
+// ═══════════════════════════════════════════════════════════════════════════
+// The orchestrator only sends PIs. We fetch all context from IPFS.
 // ═══════════════════════════════════════════════════════════════════════════
 
-// Request from orchestrator to DO
+// Request from orchestrator to DO (simplified - PI-only)
 export interface ProcessRequest {
   batch_id: string;
   chunk_id: string;
-  r2_prefix: string;
-  operation: 'organize' | 'strategize';
+  pis: string[];  // Just PI strings - we fetch context from IPFS
   custom_prompt?: string;
-  strategy_guidance?: string;
-
-  // For organize operation
-  pis?: Array<{
-    pi: string;
-    current_tip: string;
-    directory_path: string;
-    files: OrganizeFileInput[];
-    parent_components: Record<string, string>;  // filename -> CID
-  }>;
-
-  // For strategize operation
-  strategize?: {
-    directory_path: string;
-    files: OrganizeFileInput[];
-    total_file_count: number;
-    chunk_count: number;
-  };
 }
 
 // State machine phases
@@ -211,15 +194,15 @@ export type Phase = 'PENDING' | 'PROCESSING' | 'PUBLISHING' | 'CALLBACK' | 'DONE
 
 // Per-PI state tracking for organize operation
 export interface PIState {
-  pi: string;
-  current_tip: string;
-  directory_path: string;
-  status: 'pending' | 'processing' | 'publishing' | 'done' | 'error';
+  id: string;
+  status: 'pending' | 'fetching' | 'processing' | 'publishing' | 'done' | 'error';
   retry_count: number;
 
-  // Input
-  files: OrganizeFileInput[];
-  parent_components: Record<string, string>;
+  // Context fetched from IPFS (populated during FETCHING phase)
+  tip?: string;
+  directoryPath?: string;
+  files?: OrganizeFileInput[];
+  components?: Record<string, string>;  // filename -> CID for group creation
 
   // LLM result
   organize_result?: OrganizeResponse;
@@ -227,7 +210,7 @@ export interface PIState {
   // Entity results
   group_entities?: Array<{
     group_name: string;
-    pi: string;
+    id: string;
     tip: string;
     ver: number;
     files: string[];
@@ -242,79 +225,63 @@ export interface PIState {
   error?: string;
 }
 
-// Strategize state (simpler, no entity ops)
-export interface StrategizeDOState {
-  status: 'pending' | 'processing' | 'done' | 'error';
-  retry_count: number;
-  directory_path: string;
-  files: OrganizeFileInput[];
-  total_file_count: number;
-  chunk_count: number;
-
-  result?: StrategizeResponse;
-  error?: string;
-}
-
-// DO state
+// DO state (simplified - no strategize)
 export interface OrganizerBatchState {
   batch_id: string;
   chunk_id: string;
-  r2_prefix: string;
-  operation: 'organize' | 'strategize';
   custom_prompt?: string;
-  strategy_guidance?: string;
 
   phase: Phase;
   started_at: string;
   completed_at?: string;
 
-  // For organize
-  pis?: PIState[];
-
-  // For strategize
-  strategize?: StrategizeDOState;
+  pis: PIState[];
 
   callback_retry_count: number;
   global_error?: string;
 }
 
-// Callback payload (sent to orchestrator)
+// PINode structure for new group entities (matches orchestrator types)
+// Note: Callback interface uses 'pi' field name for orchestrator compatibility
+export interface PINode {
+  pi: string;  // Use 'pi' for orchestrator callback interface
+  parent_pi?: string;
+  children_pi: string[];
+  processing_config: {
+    ocr: boolean;
+    reorganize?: boolean;
+    pinax: boolean;
+    cheimarros: boolean;
+    describe: boolean;
+  };
+}
+
+// Callback payload (matches orchestrator's ServiceCallback format)
+// Note: Uses 'pi' field for orchestrator compatibility (not 'id')
 export interface OrganizerCallbackPayload {
   batch_id: string;
   chunk_id: string;
-  operation: 'organize' | 'strategize';
   status: 'success' | 'partial' | 'error';
 
-  // For organize
-  results?: Array<{
-    pi: string;
+  results: Array<{
+    pi: string;  // Use 'pi' for orchestrator callback interface
     status: 'success' | 'error';
+    new_tip?: string;
+    new_version?: number;
+    error?: string;
 
-    // On success
-    new_parent_tip?: string;
-    new_parent_version?: number;
+    // Group entities created from this PI
     group_entities?: Array<{
       group_name: string;
-      pi: string;
-      tip: string;
-      ver: number;
+      pi: string;  // Use 'pi' for orchestrator callback interface
       files: string[];
       description: string;
     }>;
-    ungrouped_files?: string[];
-    reorganization_description?: string;
-    llm_metrics?: {
-      validation_warnings?: string[];
-      missing_files_count: number;
-      missing_files: string[];
-    };
-
-    // On error
-    error?: string;
   }>;
 
-  // For strategize
-  strategize_result?: StrategizeResponse;
+  // New child PIs created during reorganization
+  // Orchestrator will add these to its PI tree
+  new_pis?: PINode[];
 
   summary: {
     total: number;

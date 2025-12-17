@@ -17,7 +17,7 @@ import { processOrganizeRequest } from './service';
 import { processStrategizeRequest } from './strategize-service';
 import { OrganizerBatchDO } from './durable-objects/OrganizerBatchDO';
 
-// Export the Durable Object class
+// Export the Durable Object class (SQLite-backed for 10GB storage vs 128KB KV limit)
 export { OrganizerBatchDO };
 
 export default {
@@ -46,14 +46,14 @@ export default {
     // ASYNC DO ENDPOINTS (New Pattern)
     // ═══════════════════════════════════════════════════════════════
 
-    // POST /process - Start async batch processing
+    // POST /process - Start async batch processing (PI-only)
     if (request.method === 'POST' && url.pathname === '/process') {
       try {
         const body = await request.json() as ProcessRequest;
 
-        if (!body.batch_id || !body.chunk_id || !body.operation) {
+        if (!body.batch_id || !body.chunk_id || !body.pis || body.pis.length === 0) {
           return Response.json(
-            { error: 'Missing required fields: batch_id, chunk_id, operation' },
+            { error: 'Missing required fields: batch_id, chunk_id, pis[]' },
             { status: 400, headers: { 'Access-Control-Allow-Origin': '*' } }
           );
         }

@@ -7,6 +7,7 @@ import type { Env, OrganizeRequest, OrganizeResponse, OrganizeStructuredOutput, 
 import { callLLM } from './llm';
 import { generateSystemPrompt, generateUserPrompt, getLastTruncationStats } from './prompts';
 import { validateRequest, validateResponse } from './validation';
+import { withRetry } from './lib/retry';
 
 /**
  * JSON Schema for structured output
@@ -80,8 +81,11 @@ export async function processOrganizeRequest(
   const systemPrompt = generateSystemPrompt(request.custom_prompt);
   const userPrompt = generateUserPrompt(request, env);
 
-  // 3. Call LLM with structured output schema
-  const llmResponse = await callLLM(systemPrompt, userPrompt, env, ORGANIZE_SCHEMA);
+  // 3. Call LLM with structured output schema (with retry for transient errors)
+  const llmResponse = await withRetry(
+    () => callLLM(systemPrompt, userPrompt, env, ORGANIZE_SCHEMA),
+    { maxRetries: 3, baseDelayMs: 1000, maxDelayMs: 30000 }
+  );
 
   // 4. Parse structured JSON response
   let parsedResponse: OrganizeStructuredOutput;
